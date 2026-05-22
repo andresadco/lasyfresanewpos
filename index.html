@@ -6963,6 +6963,32 @@ function confirmarPago(){
     ORDERS_MOCK.unshift(orderRecord);
   }
 
+  // ── Sumar visita + spend + puntos al cliente del Lady Club (si hay) ──
+  if(currentClub && currentClub.id && typeof CLIENTES_MOCK !== 'undefined'){
+    const cli = CLIENTES_MOCK.find(x => x.id === currentClub.id);
+    if(cli){
+      const before = cli.orders || 0;
+      cli.orders = before + 1;
+      cli.spend = (Number(cli.spend) || 0) + final.total;
+      cli.last = 'hoy';
+      // Puntos: ~1 punto por cada $10 (puedes ajustar la fórmula)
+      const ptsGanados = Math.round(final.total / 10);
+      cli.pts = (Number(cli.pts) || 0) + ptsGanados;
+      // Actualizar tier si subió
+      if(typeof updateTier === 'function') updateTier(cli);
+      // Persistir
+      if(typeof window.persistAll === 'function') window.persistAll();
+      if(window.LFSync && window.LFSync.pushCustomer) window.LFSync.pushCustomer(cli);
+      // Notificar: ¿llegó a premio?
+      const justGotReward = cli.orders > 0 && cli.orders % 10 === 0 && Math.floor(cli.orders/10) > Math.floor(before/10);
+      if(justGotReward){
+        setTimeout(() => showToast(`🎁 ¡${cli.name} ganó un premio!`, 0, '🎉'), 800);
+      } else {
+        setTimeout(() => showToast(`+1 visita · ${cli.name} (${cli.orders}/10)`, 0, '🎫'), 800);
+      }
+    }
+  }
+
   // Push venta a Supabase (si hay sync)
   try {
     if(window.LFSync && window.LFSync.pushOrder){
@@ -11544,6 +11570,25 @@ function adjustPtsCustom(id){
   });
 }
 
+// Recalcula el tier del cliente según visitas totales
+// Bronce: 0-9 · Plata: 10-29 · Oro: 30-99 · Diamante: 100+
+function updateTier(c){
+  if(!c) return;
+  const v = c.orders || 0;
+  let newTier = 'Bronce';
+  if(v >= 100) newTier = 'Diamante';
+  else if(v >= 30) newTier = 'Oro';
+  else if(v >= 10) newTier = 'Plata';
+  if(c.tier !== newTier){
+    const subio = ['Bronce','Plata','Oro','Diamante'].indexOf(newTier) > ['Bronce','Plata','Oro','Diamante'].indexOf(c.tier || 'Bronce');
+    c.tier = newTier;
+    if(subio && typeof showToast === 'function'){
+      const emoji = {Bronce:'🥉', Plata:'🥈', Oro:'🥇', Diamante:'💎'}[newTier] || '⭐';
+      setTimeout(() => showToast(`${emoji} ¡${c.name} subió a ${newTier}!`, 0, '🎉'), 1600);
+    }
+  }
+}
+
 // VISITAS / SELLOS — sumar o quitar visitas al programa de fidelidad
 function adjustVisits(id, delta){
   if(typeof CLIENTES_MOCK==='undefined') return;
@@ -11554,6 +11599,8 @@ function adjustVisits(id, delta){
   if(delta > 0){
     c.last = 'hoy';
   }
+  // Recalcular tier
+  if(typeof updateTier === 'function') updateTier(c);
   // Persistir
   if(typeof window.persistAll === 'function') window.persistAll();
   if(window.LFSync && window.LFSync.pushCustomer) window.LFSync.pushCustomer(c);
@@ -11789,6 +11836,7 @@ function confirmRefund(n, total){
   // Update mock
   const o = ORDERS_MOCK.find(x=>x.n===n);
   if(o){
+    const wasFullRefund = amount >= (Number(o.total) || 0);
     o.status = 'reembolsada';
     o.refund = { reason: s.reason, time: new Date().toTimeString().slice(0,5), amount };
     // Push refund a Supabase (si hay sync)
@@ -11797,6 +11845,21 @@ function confirmRefund(n, total){
         window.LFSync.updateOrder(n, { status: 'reembolsada', refund: o.refund });
       }
     } catch(e){ console.warn('Push refund error:', e); }
+
+    // ── Si la venta era de un cliente del club y es reembolso TOTAL, revertir visita/spend/puntos ──
+    if(wasFullRefund && o.client && typeof CLIENTES_MOCK !== 'undefined'){
+      const cli = CLIENTES_MOCK.find(x => x.name === o.client);
+      if(cli){
+        if((cli.orders || 0) > 0) cli.orders -= 1;
+        cli.spend = Math.max(0, (Number(cli.spend) || 0) - amount);
+        const ptsPerdidos = Math.round(amount / 10);
+        cli.pts = Math.max(0, (Number(cli.pts) || 0) - ptsPerdidos);
+        if(typeof updateTier === 'function') updateTier(cli);
+        if(typeof window.persistAll === 'function') window.persistAll();
+        if(window.LFSync && window.LFSync.pushCustomer) window.LFSync.pushCustomer(cli);
+        setTimeout(() => showToast(`−1 visita · ${cli.name} (reembolso)`, 0, '↩'), 800);
+      }
+    }
   }
   $('#ov-refund').remove();
   renderHistList();
