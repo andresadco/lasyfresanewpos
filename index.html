@@ -7071,6 +7071,35 @@ function refreshEfec(){
 function confirmarPago(){
   const total = orderFinal().total;
   const cambio = payMethod==='efectivo' ? efecAmount - total : 0;
+
+  // Push venta a Supabase (si hay sync)
+  try {
+    if(window.LFSync && window.LFSync.pushOrder){
+      const final = orderFinal();
+      const orderData = {
+        n: String(orderN).padStart(3,'0'),
+        time: new Date().toTimeString().slice(0,5),
+        items: order.map(it => ({
+          name: it.name, qty: it.qty, price: it.unitPrice, emoji: it.emoji,
+          mods: (it.tags||[]).map(t => `${t.name}${t.extra>0?' +$'+t.extra:''}`),
+          note: it.note || '',
+        })),
+        client: currentClub ? currentClub.name : '',
+        svc: svcType,
+        pay: payMethod,
+        subtotal: Math.round(final.gross - final.iva),
+        discount: typeof discountAmount === 'function' ? discountAmount(final.subtotal) : 0,
+        iva: final.iva,
+        fee: (svcType === 'delivery' && typeof DELIVERY !== 'undefined' && DELIVERY.fee) ? DELIVERY.fee : 0,
+        total: final.total,
+        status: 'completada',
+      };
+      window.LFSync.pushOrder(orderData).then(saved => {
+        if(saved && typeof showToast === 'function') showToast('Venta guardada en la nube ✓', 0, '☁️');
+      });
+    }
+  } catch(e){ console.warn('Push order error:', e); }
+
   // Mostrar flash
   $('#sf-order-num').textContent = String(orderN).padStart(3,'0');
   $('#sf-method').textContent = payMethod==='efectivo'?'Efectivo':payMethod==='tarjeta'?'Tarjeta':'Transferencia';

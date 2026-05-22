@@ -65,7 +65,7 @@
   async function loadFromSupabase(){
     showSyncStatus('Sincronizando…', 'sync');
     try {
-      const [products, categories, modifiers, discounts, customers, users, branches, parkedOrders, settings] = await Promise.all([
+      const [products, categories, modifiers, discounts, customers, users, branches, parkedOrders, settings, orders] = await Promise.all([
         sb.from('products').select('*').order('position', {ascending:true}),
         sb.from('categories').select('*').order('position', {ascending:true}),
         sb.from('modifiers').select('*'),
@@ -75,6 +75,7 @@
         sb.from('branches').select('*'),
         sb.from('parked_orders').select('*').order('created_at', {ascending:false}),
         sb.from('app_settings').select('*').eq('id',1).maybeSingle(),
+        sb.from('orders').select('*').order('created_at', {ascending:false}).limit(100),
       ]);
 
       // PRODUCTS
@@ -160,6 +161,20 @@
       // SETTINGS
       if(settings.data && settings.data.data && typeof AJ !== 'undefined'){
         Object.assign(AJ, settings.data.data);
+      }
+
+      // ORDERS (historial)
+      if(orders.data && typeof ORDERS_MOCK !== 'undefined'){
+        ORDERS_MOCK.length = 0;
+        orders.data.forEach(o => ORDERS_MOCK.push({
+          n: o.n, time: o.time,
+          items: o.items || [],
+          client: o.client || '',
+          svc: o.svc, pay: o.pay,
+          total: Number(o.total),
+          status: o.status,
+          refund: o.refund || null,
+        }));
       }
 
       // Re-renderizar
@@ -311,9 +326,30 @@
     sb.channel('lf-orders').on('postgres_changes',
       { event:'INSERT', schema:'public', table:'orders' },
       (payload) => {
-        const newN = payload.new?.n;
+        const o = payload.new;
+        if(!o) return;
+        // Añadir al ORDERS_MOCK si existe (al principio)
+        if(typeof ORDERS_MOCK !== 'undefined'){
+          // Evitar duplicar (puede que ya esté si la venta fue local)
+          const exists = ORDERS_MOCK.find(x => x.n === o.n && x.time === o.time);
+          if(!exists){
+            ORDERS_MOCK.unshift({
+              n: o.n, time: o.time,
+              items: o.items || [],
+              client: o.client || '',
+              svc: o.svc, pay: o.pay,
+              total: Number(o.total),
+              status: o.status,
+              refund: o.refund || null,
+            });
+            // Si el historial está abierto, re-render
+            if(typeof renderHistList === 'function' && document.querySelector('#screen-historial.active')){
+              renderHistList();
+            }
+          }
+        }
         if(typeof showToast === 'function'){
-          showToast('Nueva venta · #' + newN, 0, '🛎️');
+          showToast('Nueva venta · #' + o.n + ' · $' + o.total, 0, '🛎️');
         }
       }
     ).subscribe();
@@ -321,7 +357,6 @@
     sb.channel('lf-products').on('postgres_changes',
       { event:'*', schema:'public', table:'products' },
       () => {
-        // Re-fetch productos
         sb.from('products').select('*').order('position').then(({data}) => {
           if(!data || typeof PRODUCTS === 'undefined') return;
           PRODUCTS.length = 0;
@@ -330,6 +365,23 @@
             desc: p.desc, img: p.img, mods: p.mods || [], active: p.active !== false,
           }));
           if(typeof renderProducts === 'function') renderProducts();
+        });
+      }
+    ).subscribe();
+
+    sb.channel('lf-customers').on('postgres_changes',
+      { event:'*', schema:'public', table:'customers' },
+      () => {
+        sb.from('customers').select('*').then(({data}) => {
+          if(!data || typeof CLIENTES_MOCK === 'undefined') return;
+          CLIENTES_MOCK.length = 0;
+          data.forEach(c => CLIENTES_MOCK.push({
+            id: c.id, name: c.name, phone: c.phone, pts: c.pts,
+            next: c.next, tier: c.tier, spend: Number(c.spend),
+            orders: c.orders, last: c.last, vip: c.vip,
+            bday: c.bday, since: c.since, note: c.note, favs: c.favs || [],
+          }));
+          if(typeof renderCliList === 'function' && document.querySelector('#screen-clientes.active')) renderCliList();
         });
       }
     ).subscribe();
