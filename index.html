@@ -12012,6 +12012,8 @@ function saveProd(){
     const idx = PRODUCTS.findIndex(p=>p.id===PROD_EDIT.id);
     if(idx>=0) PRODUCTS[idx] = d;
   }
+  // Persistir local + Supabase
+  if(typeof window.persistAll === 'function') window.persistAll();
   closeProdEditor();
   $('#admin-main').innerHTML = renderAdminSection('productos');
   if(typeof renderProducts==='function') renderProducts();
@@ -12572,19 +12574,36 @@ function confirmDanger(opts){
 ═══════════════════════════════════════════════════════════════ */
 const LF_DB_KEYS = ['PRODUCTS','CATS','MODS','DESCUENTOS','CLIENTES_MOCK','USUARIOS','AJ','BRANCHES','parked'];
 function persistAll(){
-  try {
-    if(typeof PRODUCTS !== 'undefined') localStorage.setItem('lf_PRODUCTS', JSON.stringify(PRODUCTS));
-    if(typeof CATS !== 'undefined') localStorage.setItem('lf_CATS', JSON.stringify(CATS));
-    if(typeof MODS !== 'undefined') localStorage.setItem('lf_MODS', JSON.stringify(MODS));
-    if(typeof DESCUENTOS !== 'undefined') localStorage.setItem('lf_DESCUENTOS', JSON.stringify(DESCUENTOS));
-    if(typeof CLIENTES_MOCK !== 'undefined') localStorage.setItem('lf_CLIENTES', JSON.stringify(CLIENTES_MOCK));
-    if(typeof USUARIOS !== 'undefined') localStorage.setItem('lf_USUARIOS', JSON.stringify(USUARIOS));
-    if(typeof AJ !== 'undefined') localStorage.setItem('lf_AJ', JSON.stringify(AJ));
-    if(typeof BRANCHES !== 'undefined') localStorage.setItem('lf_BRANCHES', JSON.stringify(BRANCHES));
-    if(typeof parked !== 'undefined') localStorage.setItem('lf_parked', JSON.stringify(parked));
-    if(typeof INV_MOCK !== 'undefined') localStorage.setItem('lf_INV', JSON.stringify(INV_MOCK));
-    localStorage.setItem('lf_saved_at', Date.now());
-  } catch(e){ console.warn('Persist failed:', e); }
+  const items = [
+    ['PRODUCTS', typeof PRODUCTS !== 'undefined' ? PRODUCTS : null],
+    ['CATS', typeof CATS !== 'undefined' ? CATS : null],
+    ['MODS', typeof MODS !== 'undefined' ? MODS : null],
+    ['DESCUENTOS', typeof DESCUENTOS !== 'undefined' ? DESCUENTOS : null],
+    ['CLIENTES', typeof CLIENTES_MOCK !== 'undefined' ? CLIENTES_MOCK : null],
+    ['USUARIOS', typeof USUARIOS !== 'undefined' ? USUARIOS : null],
+    ['AJ', typeof AJ !== 'undefined' ? AJ : null],
+    ['BRANCHES', typeof BRANCHES !== 'undefined' ? BRANCHES : null],
+    ['parked', typeof parked !== 'undefined' ? parked : null],
+    ['INV', typeof INV_MOCK !== 'undefined' ? INV_MOCK : null],
+  ];
+  const failures = [];
+  for(const [key, val] of items){
+    if(val === null) continue;
+    try {
+      localStorage.setItem('lf_' + key, JSON.stringify(val));
+    } catch(e){
+      // QuotaExceededError u otro
+      failures.push(key);
+      console.warn('Persist falló para', key, ':', e.message);
+    }
+  }
+  try { localStorage.setItem('lf_saved_at', Date.now()); } catch(e){}
+  if(failures.length && typeof showToast === 'function'){
+    // Avisar al usuario en vez de fallar silencioso
+    if(failures.includes('PRODUCTS')){
+      showToast('⚠ Storage lleno · imagen muy pesada', 0, '⚠️');
+    }
+  }
 }
 // Exponer explícitamente para que supabase-sync.js pueda interceptar (no depender del hoisting global)
 window.persistAll = persistAll;
@@ -12606,21 +12625,6 @@ function loadAll(){
       return true;
     };
     if(typeof PRODUCTS !== 'undefined') load('PRODUCTS', PRODUCTS);
-    // ── LIMPIEZA: borrar imágenes JPEG base64 viejas (versión con bug del fondo negro) ──
-    // El fix nuevo guarda PNG en lugar de JPEG cuando hay transparencia. Si ya hay
-    // un JPEG base64 guardado, lo borramos para que la app vuelva a cargar el PNG original.
-    if(typeof PRODUCTS !== 'undefined'){
-      let cleaned = 0;
-      PRODUCTS.forEach(p => {
-        if(p.img && typeof p.img === 'string' && p.img.startsWith('data:image/jpeg')){
-          p.img = ''; // dejar vacío para que use fallback o que la próxima carga de Supabase traiga la URL real
-          cleaned++;
-        }
-      });
-      if(cleaned > 0){
-        console.log('[LF-POS] Limpiadas', cleaned, 'imágenes JPEG viejas');
-      }
-    }
     if(typeof CATS !== 'undefined') load('CATS', CATS);
     if(typeof MODS !== 'undefined') load('MODS', MODS);
     if(typeof DESCUENTOS !== 'undefined') load('DESCUENTOS', DESCUENTOS);
