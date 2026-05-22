@@ -368,6 +368,16 @@ body[data-rol="admin"] .tb-user-rol { color: #C9942D; }
   object-fit: contain;
   transition: transform var(--dur-md) var(--ease-out);
 }
+/* Fallback cuando la imagen falla al cargar (onerror) */
+.prod-tile.img-fallback {
+  background: linear-gradient(135deg, #FFF5F7 0%, #FFE8ED 100%);
+}
+.prod-tile.img-fallback::before {
+  content: attr(data-emoji);
+  font-size: 64px;
+  line-height: 1;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.12));
+}
 .prod-card:hover .prod-tile img { transform: scale(1.05); }
 .prod-card:active .prod-tile img { transform: scale(0.98); }
 /* Placeholder cup-shape for items without photo */
@@ -6104,7 +6114,7 @@ function renderProducts(){
       ${qty?`<div class="prod-qty-badge" key="${p.id}-${qty}">${qty}</div>`:''}
       ${isSpec?`<div class="prod-flag">Especial</div>`:''}
       ${p.img
-        ? `<div class="prod-tile"><img src="${p.img}" alt="${sanitize(p.name)}" loading="lazy"></div>`
+        ? `<div class="prod-tile"><img src="${p.img}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('img-fallback');this.parentElement.setAttribute('data-emoji','${EMOJI[p.name]||'🍓'}')"></div>`
         : `<div class="prod-tile placeholder"><div class="ph-cup"><span class="ph-emoji">${EMOJI[p.name]||'🍓'}</span><span class="ph-mark">LADY FRESA</span></div></div>`}
       <div class="prod-name">${sanitize(p.name)}</div>
       <div class="prod-meta">${sanitize(p.desc)}</div>
@@ -11897,12 +11907,52 @@ function pickProdImage(){
   inp.type = 'file'; inp.accept = 'image/*';
   inp.onchange = (e)=>{
     const f = e.target.files[0]; if(!f) return;
-    const url = URL.createObjectURL(f);
-    PROD_EDIT.draft.img = url;
-    document.getElementById('pe-photo').innerHTML = `<img src="${url}" alt="">`;
-    showToast('Foto cargada', 0, '🖼');
+    // Validar tamaño (max 2 MB en Base64 ≈ 1.5 MB original)
+    if(f.size > 2 * 1024 * 1024){
+      showToast('Imagen muy grande · máx 2 MB', 0, '⚠️');
+      return;
+    }
+    // Convertir a Base64 para que persista en localStorage y Supabase
+    // (no usar createObjectURL: las blob URLs mueren al recargar)
+    showToast('Procesando imagen…', 0, '⏳');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      // Opcional: re-comprimir si es muy grande, vía canvas
+      compressImage(dataUrl, 800, 0.85, (compressed) => {
+        PROD_EDIT.draft.img = compressed;
+        const ph = document.getElementById('pe-photo');
+        if(ph) ph.innerHTML = `<img src="${compressed}" alt="">`;
+        showToast('Foto cargada · ' + Math.round(compressed.length / 1024) + ' KB', 0, '🖼');
+      });
+    };
+    reader.onerror = () => showToast('Error al leer la imagen', 0, '⚠️');
+    reader.readAsDataURL(f);
   };
   inp.click();
+}
+// Comprime una data URL redimensionando a maxSide px y calidad jpeg
+function compressImage(dataUrl, maxSide, quality, callback){
+  const img = new Image();
+  img.onload = () => {
+    let { width, height } = img;
+    if(width > maxSide || height > maxSide){
+      if(width > height){
+        height = Math.round(height * maxSide / width);
+        width = maxSide;
+      } else {
+        width = Math.round(width * maxSide / height);
+        height = maxSide;
+      }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.onerror = () => callback(dataUrl); // si falla, usar original
+  img.src = dataUrl;
 }
 function clearProdImage(){
   PROD_EDIT.draft.img = '';
@@ -12581,25 +12631,4 @@ console.log('[LF-POS] Funciones expuestas:', Object.keys(window).filter(k => /^(
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-sync.js"></script>
 
-</body><grammarly-desktop-integration data-grammarly-shadow-root="true"></grammarly-desktop-integration></html>
-<style id="__om-edit-overrides">
-#products-grid >[data-id="4"] { border-color: rgb(255, 255, 255) !important }
-#products-grid >[data-id="4"] { border-color: rgb(153, 70, 83) !important }
-#products-grid >[data-id="4"] { border-color: rgb(233, 224, 225) !important }
-#products-grid >[data-id="3"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="3"] :is(img,video) { object-fit: fill !important }
-#products-grid >[data-id="3"] :is(img,video) { object-fit: scale-down !important }
-#products-grid >[data-id="3"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="2"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="1"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="4"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="7"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="6"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="5"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="10"] :is(img,video) { object-fit: contain !important }
-#products-grid >[data-id="9"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="10"] :is(img,video) { object-fit: cover !important }
-#products-grid >[data-id="10"] :is(img,video) { object-fit: contain !important }
-#products-grid >[data-id="10"] :is(img,video) { object-fit: fill !important }
-#products-grid >[data-id="10"] :is(img,video) { object-fit: cover !important }
-</style>
+</body></html>

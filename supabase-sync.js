@@ -89,7 +89,7 @@
         PRODUCTS.length = 0;
         products.data.forEach(p => PRODUCTS.push({
           id: p.id, name: p.name, cat: p.cat, price: Number(p.price),
-          desc: p.desc, img: p.img, mods: p.mods || [], active: p.active !== false,
+          desc: p.desc, img: (p.img && !p.img.startsWith('blob:')) ? p.img : null, mods: p.mods || [], active: p.active !== false,
         }));
       }
 
@@ -235,7 +235,9 @@
     showSyncStatus('Guardando…', 'sync');
     const rows = PRODUCTS.map((p, idx) => ({
       id: p.id, name: p.name, cat: p.cat, price: p.price,
-      desc: p.desc || '', img: p.img || null,
+      desc: p.desc || '',
+      // Ignorar blob: URLs (solo válidas en la sesión actual)
+      img: (p.img && !p.img.startsWith('blob:')) ? p.img : null,
       mods: p.mods || [], active: p.active !== false, position: idx,
     }));
     const { error } = await sb.from('products').upsert(rows, {onConflict:'id'});
@@ -588,7 +590,9 @@
           PRODUCTS.length = 0;
           data.forEach(p => PRODUCTS.push({
             id: p.id, name: p.name, cat: p.cat, price: Number(p.price),
-            desc: p.desc, img: p.img, mods: p.mods || [], active: p.active !== false,
+            desc: p.desc,
+            img: (p.img && !p.img.startsWith('blob:')) ? p.img : null,
+            mods: p.mods || [], active: p.active !== false,
           }));
           if(typeof renderProducts === 'function') renderProducts();
         });
