@@ -8746,6 +8746,30 @@ function renderClientDetail(c){
       </div>
     </div>
 
+    <!-- VISITAS / SELLOS EDITOR -->
+    <div class="clid-card">
+      <div class="clid-card-h">
+        <span>🎫 Visitas / sellos</span>
+        <span style="font-family:var(--font-display);font-size:24px;color:var(--brand-red);font-feature-settings:'tnum' 1;">${c.orders || 0}</span>
+      </div>
+      <div style="font-size:12px;color:var(--ink-500);margin-bottom:var(--sp-3);">
+        ${(() => {
+          const stampMod = (c.orders || 0) % 10;
+          const ready = stampMod === 0 && (c.orders || 0) > 0;
+          if(ready) return '🎁 <strong style="color:var(--brand-red);">¡Premio listo!</strong> Tiene una fresa gratis disponible.';
+          const left = 10 - stampMod;
+          return `Le faltan <strong>${left} ${left===1?'visita':'visitas'}</strong> para su próximo premio.`;
+        })()}
+      </div>
+      <div class="clid-pts-row">
+        <button class="clid-pts-btn neg" onclick="adjustVisits(${c.id}, -1)">− 1</button>
+        <button class="clid-pts-btn pos" onclick="adjustVisits(${c.id}, 1)">+ 1</button>
+        <button class="clid-pts-btn pos" onclick="adjustVisits(${c.id}, 5)">+ 5</button>
+        <button class="clid-pts-btn pos" onclick="claimReward(${c.id})" ${((c.orders||0) % 10 === 0 && (c.orders||0) > 0)?'':'disabled style="opacity:0.4;cursor:not-allowed;"'}>🎁 Canjear premio</button>
+        <button class="clid-pts-btn custom" onclick="adjustVisitsCustom(${c.id})">Otro…</button>
+      </div>
+    </div>
+
     <div class="clid-twocol">
       <!-- NOTAS INTERNAS -->
       <div class="clid-card">
@@ -11504,6 +11528,9 @@ function adjustPts(id, delta){
   if(typeof CLIENTES_MOCK==='undefined') return;
   const c = CLIENTES_MOCK.find(x=>x.id===id); if(!c) return;
   c.pts = Math.max(0, c.pts + delta);
+  // Persistir el cambio
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushCustomer) window.LFSync.pushCustomer(c);
   if(typeof selectCli==='function') selectCli(id);
   if(typeof renderCliList==='function') renderCliList();
   showToast(`${delta>0?'+':''}${delta} pts · ${c.name}`, 0, delta>0?'⭐':'➖');
@@ -11515,6 +11542,57 @@ function adjustPtsCustom(id){
     okLabel:'Aplicar',
     onOk: ([n])=> adjustPts(id, parseInt(n)||0)
   });
+}
+
+// VISITAS / SELLOS — sumar o quitar visitas al programa de fidelidad
+function adjustVisits(id, delta){
+  if(typeof CLIENTES_MOCK==='undefined') return;
+  const c = CLIENTES_MOCK.find(x=>x.id===id); if(!c) return;
+  const before = c.orders || 0;
+  c.orders = Math.max(0, before + delta);
+  // Actualizar también "last" si añadimos una visita
+  if(delta > 0){
+    c.last = 'hoy';
+  }
+  // Persistir
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushCustomer) window.LFSync.pushCustomer(c);
+  if(typeof selectCli==='function') selectCli(id);
+  if(typeof renderCliList==='function') renderCliList();
+  // Detectar si llegó a 10 visitas (premio listo)
+  const justGotReward = c.orders > 0 && c.orders % 10 === 0 && Math.floor(c.orders/10) > Math.floor(before/10);
+  if(justGotReward){
+    showToast(`🎁 ¡${c.name} ganó un premio!`, 0, '🎉');
+    vibrate([50,30,50,30,80]);
+  } else {
+    showToast(`${delta>0?'+':''}${delta} ${Math.abs(delta)===1?'visita':'visitas'} · ${c.name}`, 0, delta>0?'🎫':'➖');
+  }
+}
+function adjustVisitsCustom(id){
+  quickPrompt({
+    title:'Ajustar visitas', sub:'Positivo suma · negativo resta',
+    fields:[{label:'Visitas', type:'number', ph:'3'}, {label:'Motivo (opcional)', ph:'Compensación'}],
+    okLabel:'Aplicar',
+    onOk: ([n])=> adjustVisits(id, parseInt(n)||0)
+  });
+}
+// Canjear premio: resta exactamente 10 visitas (1 ciclo)
+function claimReward(id){
+  if(typeof CLIENTES_MOCK==='undefined') return;
+  const c = CLIENTES_MOCK.find(x=>x.id===id); if(!c) return;
+  if(!c.orders || c.orders < 10 || c.orders % 10 !== 0){
+    showToast('No hay premio disponible para canjear', 0, '⚠️');
+    return;
+  }
+  if(!confirm(`¿Canjear el premio de ${c.name}?\nSe restarán 10 visitas (premio: fresas gratis).`)) return;
+  c.orders -= 10;
+  // Persistir
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushCustomer) window.LFSync.pushCustomer(c);
+  if(typeof selectCli==='function') selectCli(id);
+  if(typeof renderCliList==='function') renderCliList();
+  showToast(`🎁 Premio canjeado · ${c.name}`, 0, '✓');
+  vibrate([40,30,40]);
 }
 function editClienteNota(id){
   if(typeof CLIENTES_MOCK==='undefined') return;
