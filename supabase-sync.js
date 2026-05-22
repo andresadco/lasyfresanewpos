@@ -348,6 +348,26 @@
     return data?.[0];
   }
 
+  // Traer ventas del día actual para la sucursal actual.
+  // Útil para el corte de caja, donde no queremos depender del cache local.
+  async function fetchTodayOrders(){
+    try {
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const branchId = typeof currentBranchId !== 'undefined' ? currentBranchId : null;
+      let q = sb.from('orders').select('*')
+        .gte('created_at', startOfDay)
+        .order('created_at', {ascending: false});
+      if(branchId) q = q.eq('branch_id', branchId);
+      const { data, error } = await q;
+      if(error){ console.error('[LF-Sync] fetchTodayOrders:', error); return null; }
+      return data || [];
+    } catch(err){
+      console.error('[LF-Sync] fetchTodayOrders (network):', err);
+      return null;
+    }
+  }
+
   async function pushParked(){
     if(typeof parked === 'undefined') return;
     // Estrategia: upsert los actuales, luego borrar los que el servidor tiene pero local ya no
@@ -397,6 +417,7 @@
     pushUsers: debounce(pushUsers, 800),
     pushOrder, // se llama inmediato al cerrar venta
     updateOrder, // para refunds y cambios de status — inmediato
+    fetchTodayOrders, // ventas del día (para corte de caja)
     pushParked: debounce(pushParked, 600),
     pushSettings: debounce(pushSettings, 1000),
     flushPendingOrders, // intenta subir órdenes encoladas

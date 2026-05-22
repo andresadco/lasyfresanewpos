@@ -9252,26 +9252,92 @@ const CORTE = {
   step: 1,                 // 1: resumen, 2: conteo, 3: ticket Z
   mode: 'denom',           // 'denom' | 'total'
   fondo: 800,
-  retiros: 450,
+  retiros: 0,
   depositos: 0,
-  pago: { efectivo: 4030, tarjeta: 2240, transfer: 550 },
-  ordenes: 47,
-  ticket: 145,
-  propinas: 420,
-  cancelaciones: 1,
-  descuentos: 180,
-  apertura: { time: '09:15', user: 'Ana' },
+  pago: { efectivo: 0, tarjeta: 0, transfer: 0 },
+  ordenes: 0,
+  ticket: 0,
+  propinas: 0,
+  cancelaciones: 0,
+  descuentos: 0,
+  apertura: { time: '09:00', user: '—' },
   denoms: { 1000:0, 500:0, 200:0, 100:0, 50:0, 20:0, 10:0, 5:0, 2:0, 1:0 },
   totalManual: 0,
   notes: '',
-  top: [
-    { name:'La Pistachona', qty:18, amt: 18*189, emoji:'🟢' },
-    { name:'La Cookie Lover', qty:12, amt: 12*159, emoji:'🍪' },
-    { name:'Fresas', qty:11, amt: 11*99,  emoji:'🍓' },
-    { name:'Lady Lotus', qty:8,  amt: 8*159,  emoji:'🌸' },
-    { name:'La Caramelita', qty:6,  amt: 6*149,  emoji:'🍮' },
-  ],
+  top: [],
 };
+
+// Recalcula CORTE.pago / ordenes / ticket / top / descuentos / cancelaciones
+// a partir de ORDERS_MOCK filtrando por HOY y la sucursal actual.
+function recomputeCorteFromOrders(){
+  if(typeof ORDERS_MOCK === 'undefined') return;
+  const today = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+
+  // Filtrar órdenes de hoy. ORDERS_MOCK guarda 'time' (HH:MM) pero no fecha:
+  // usamos created_at si existe (de Supabase) o asumimos que todo lo que está
+  // en memoria es del día actual (se recarga desde Supabase al iniciar).
+  const todayOrders = ORDERS_MOCK.filter(o => {
+    if(o.created_at){
+      return String(o.created_at).slice(0,10) === today;
+    }
+    // Sin fecha: asumimos hoy (es lo que está cargado en memoria)
+    return true;
+  });
+
+  const completadas = todayOrders.filter(o => o.status === 'completada');
+  const reembolsadas = todayOrders.filter(o => o.status === 'reembolsada');
+  const canceladas = todayOrders.filter(o => o.status === 'cancelada');
+
+  // Totales por método de pago (solo completadas)
+  let efe = 0, tar = 0, trx = 0, propinas = 0, descuentos = 0;
+  completadas.forEach(o => {
+    const t = Number(o.total) || 0;
+    if(o.pay === 'efectivo') efe += t;
+    else if(o.pay === 'tarjeta') tar += t;
+    else if(o.pay === 'transfer') trx += t;
+    propinas += Number(o.tip) || 0;
+    descuentos += Number(o.discount) || 0;
+  });
+
+  // Restar reembolsos del efectivo correspondiente
+  reembolsadas.forEach(o => {
+    const amt = Number(o.refund?.amount) || Number(o.total) || 0;
+    if(o.pay === 'efectivo') efe -= amt;
+    else if(o.pay === 'tarjeta') tar -= amt;
+    else if(o.pay === 'transfer') trx -= amt;
+  });
+
+  CORTE.pago = { efectivo: Math.max(0, efe), tarjeta: Math.max(0, tar), transfer: Math.max(0, trx) };
+  CORTE.ordenes = completadas.length;
+  const totalVentas = CORTE.pago.efectivo + CORTE.pago.tarjeta + CORTE.pago.transfer;
+  CORTE.ticket = completadas.length ? Math.round(totalVentas / completadas.length) : 0;
+  CORTE.cancelaciones = canceladas.length + reembolsadas.length;
+  CORTE.propinas = propinas;
+  CORTE.descuentos = descuentos;
+
+  // Top productos del turno (contando qty por nombre)
+  const counts = {};
+  completadas.forEach(o => {
+    (o.items || []).forEach(it => {
+      const key = it.name;
+      if(!counts[key]) counts[key] = { name: it.name, qty: 0, amt: 0, emoji: it.emoji || '🍓' };
+      counts[key].qty += Number(it.qty) || 1;
+      counts[key].amt += (Number(it.price) || 0) * (Number(it.qty) || 1);
+    });
+  });
+  CORTE.top = Object.values(counts).sort((a,b) => b.qty - a.qty).slice(0, 5);
+
+  // Apertura: usar el usuario actual y la hora de la primera venta del día
+  // (si no hay ventas, dejar la hora actual menos algo razonable)
+  if(completadas.length){
+    const first = completadas[completadas.length - 1]; // ORDERS_MOCK está en orden descendente
+    CORTE.apertura.time = first.time || '09:00';
+  }
+  if(typeof ROLE !== 'undefined' && ROLE.user){
+    CORTE.apertura.user = ROLE.user.alias || ROLE.user.nombre || '—';
+  }
+}
+
 function corteVentasEfectivo(){ return CORTE.pago.efectivo; }
 function corteVentasTotal(){ return CORTE.pago.efectivo + CORTE.pago.tarjeta + CORTE.pago.transfer; }
 function corteEsperado(){
@@ -9290,10 +9356,90 @@ function openCorte(){
   CORTE.totalManual = 0;
   CORTE.notes = '';
   Object.keys(CORTE.denoms).forEach(k => CORTE.denoms[k] = 0);
+
   closeSheet('caja');
   $('#screen-pos').classList.remove('active');
   $('#screen-corte').classList.add('active');
+
+  // Recalcular desde cache local primero (instantáneo)
+  recomputeCorteFromOrders();
   renderCorte();
+
+  // Luego intentar traer datos frescos del día desde Supabase (asíncrono)
+  if(window.LFSync && window.LFSync.fetchTodayOrders){
+    window.LFSync.fetchTodayOrders().then(todayOrders => {
+      if(!todayOrders) return; // offline o error: nos quedamos con el cache
+      // Normalizar a formato ORDERS_MOCK
+      const fresh = todayOrders.map(o => ({
+        id: o.id,
+        n: o.n,
+        time: o.time,
+        items: o.items || [],
+        client: o.client || '',
+        svc: o.svc,
+        pay: o.pay,
+        total: Number(o.total),
+        discount: Number(o.discount) || 0,
+        status: o.status,
+        refund: o.refund || null,
+        created_at: o.created_at,
+      }));
+      // Recalcular usando estos datos en lugar de ORDERS_MOCK
+      _recomputeCorteFromList(fresh);
+      // Re-renderizar paso actual
+      if(CORTE.step === 1) renderCorteResumen();
+    }).catch(err => console.warn('[LF] corte fetch error:', err));
+  }
+}
+
+// Versión interna que toma una lista explícita (usada por openCorte con datos frescos)
+function _recomputeCorteFromList(list){
+  const completadas = list.filter(o => o.status === 'completada');
+  const reembolsadas = list.filter(o => o.status === 'reembolsada');
+  const canceladas = list.filter(o => o.status === 'cancelada');
+
+  let efe = 0, tar = 0, trx = 0, propinas = 0, descuentos = 0;
+  completadas.forEach(o => {
+    const t = Number(o.total) || 0;
+    if(o.pay === 'efectivo') efe += t;
+    else if(o.pay === 'tarjeta') tar += t;
+    else if(o.pay === 'transfer') trx += t;
+    propinas += Number(o.tip) || 0;
+    descuentos += Number(o.discount) || 0;
+  });
+  reembolsadas.forEach(o => {
+    const amt = Number(o.refund?.amount) || Number(o.total) || 0;
+    if(o.pay === 'efectivo') efe -= amt;
+    else if(o.pay === 'tarjeta') tar -= amt;
+    else if(o.pay === 'transfer') trx -= amt;
+  });
+
+  CORTE.pago = { efectivo: Math.max(0, efe), tarjeta: Math.max(0, tar), transfer: Math.max(0, trx) };
+  CORTE.ordenes = completadas.length;
+  const totalVentas = CORTE.pago.efectivo + CORTE.pago.tarjeta + CORTE.pago.transfer;
+  CORTE.ticket = completadas.length ? Math.round(totalVentas / completadas.length) : 0;
+  CORTE.cancelaciones = canceladas.length + reembolsadas.length;
+  CORTE.propinas = propinas;
+  CORTE.descuentos = descuentos;
+
+  const counts = {};
+  completadas.forEach(o => {
+    (o.items || []).forEach(it => {
+      const key = it.name;
+      if(!counts[key]) counts[key] = { name: it.name, qty: 0, amt: 0, emoji: it.emoji || '🍓' };
+      counts[key].qty += Number(it.qty) || 1;
+      counts[key].amt += (Number(it.price) || 0) * (Number(it.qty) || 1);
+    });
+  });
+  CORTE.top = Object.values(counts).sort((a,b) => b.qty - a.qty).slice(0, 5);
+
+  if(completadas.length){
+    const first = completadas[completadas.length - 1];
+    CORTE.apertura.time = first.time || '09:00';
+  }
+  if(typeof ROLE !== 'undefined' && ROLE.user){
+    CORTE.apertura.user = ROLE.user.alias || ROLE.user.nombre || '—';
+  }
 }
 function closeCorte(){
   $('#screen-corte').classList.remove('active');
@@ -9399,15 +9545,16 @@ function renderCorteResumen(){
   const total = corteVentasTotal();
   const pago = CORTE.pago;
   const pct = (n)=> total ? Math.round(n*100/total) : 0;
+  const sucursalName = (typeof getBranch === 'function' ? getBranch().name : 'Sucursal');
   $('#corte-resumen-host').innerHTML = `
     <div class="corte-section-h">Turno actual</div>
     <div class="corte-hero">
       <div class="corte-hero-eyebrow">Ventas brutas · ${CORTE.apertura.time} → ahora</div>
       <div class="corte-hero-num">${fmtMoney(total)}</div>
-      <div class="corte-hero-sub">Sucursal Centro · ${CORTE.apertura.user} · ${CORTE.ordenes} órdenes</div>
+      <div class="corte-hero-sub">${sanitize(sucursalName)} · ${sanitize(CORTE.apertura.user)} · ${CORTE.ordenes} órdenes</div>
       <div class="corte-hero-stats">
-        <div><div class="corte-stat-k">Ticket promedio</div><div class="corte-stat-v">${fmtMoney(CORTE.ticket)}</div><div class="corte-stat-delta up">▲ 8% vs ayer</div></div>
-        <div><div class="corte-stat-k">Propinas</div><div class="corte-stat-v">${fmtMoney(CORTE.propinas)}</div><div class="corte-stat-delta up">▲ 12%</div></div>
+        <div><div class="corte-stat-k">Ticket promedio</div><div class="corte-stat-v">${fmtMoney(CORTE.ticket)}</div></div>
+        <div><div class="corte-stat-k">Propinas</div><div class="corte-stat-v">${fmtMoney(CORTE.propinas)}</div></div>
         <div><div class="corte-stat-k">Descuentos</div><div class="corte-stat-v">−${fmtMoney(CORTE.descuentos)}</div></div>
         <div><div class="corte-stat-k">Cancelaciones</div><div class="corte-stat-v">${CORTE.cancelaciones}</div></div>
       </div>
@@ -9466,7 +9613,7 @@ function renderCorteResumen(){
         </div>
         <div class="corte-row">
           <div class="corte-row-icon" style="background:var(--danger-soft);">➖</div>
-          <div><div class="corte-row-name">Retiros</div><div class="corte-row-pct" style="text-align:left;">2 retiros · proveedor + cambio</div></div>
+          <div><div class="corte-row-name">Retiros</div><div class="corte-row-pct" style="text-align:left;">${CORTE.retiros>0?'Registrados':'Sin retiros'}</div></div>
           <div class="corte-row-amt">−${fmtMoney(CORTE.retiros)}</div>
         </div>
       </div>
@@ -9637,8 +9784,8 @@ function renderCorteTicket(){
         <div class="tz-sub">CORTE Z · CIERRE DE TURNO</div>
         <hr class="tz-divider">
         <div class="tz-line"><span>Folio</span><span>${folio}</span></div>
-        <div class="tz-line"><span>Sucursal</span><span>Centro</span></div>
-        <div class="tz-line"><span>Cajero</span><span>${CORTE.apertura.user}</span></div>
+        <div class="tz-line"><span>Sucursal</span><span>${sanitize((typeof getBranch==='function'?getBranch().name:'—'))}</span></div>
+        <div class="tz-line"><span>Cajero</span><span>${sanitize(CORTE.apertura.user)}</span></div>
         <div class="tz-line"><span>Apertura</span><span>${CORTE.apertura.time}</span></div>
         <div class="tz-line"><span>Cierre</span><span>${hora}</span></div>
         <div class="tz-line"><span>Fecha</span><span>${fecha}</span></div>
