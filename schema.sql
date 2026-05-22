@@ -1,11 +1,11 @@
--- ═══════════════════════════════════════════════════════════════
--- LADY FRESA POS · Schema Supabase v1
--- Pega TODO este archivo en Supabase → SQL Editor → Run
--- ═══════════════════════════════════════════════════════════════
+-- =============================================================
+-- LADY FRESA POS - Schema Supabase v1
+-- Pega TODO este archivo en Supabase > SQL Editor > Run
+-- =============================================================
 
--- ════════════════════════════════════════════════════════════════
+-- ----------------------------------------
 -- 1) TABLAS
--- ════════════════════════════════════════════════════════════════
+-- ----------------------------------------
 
 -- Sucursales
 create table if not exists public.branches (
@@ -29,7 +29,7 @@ create table if not exists public.branches (
   updated_at timestamptz default now()
 );
 
--- Categorías
+-- Categorias
 create table if not exists public.categories (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -45,7 +45,7 @@ create table if not exists public.products (
   cat text references public.categories(name) on update cascade,
   price numeric not null default 0,
   cost numeric default 0,
-  desc text,
+  "desc" text,
   img text,
   mods jsonb default '[]'::jsonb,
   active boolean default true,
@@ -55,7 +55,7 @@ create table if not exists public.products (
   updated_at timestamptz default now()
 );
 
--- Modificadores (grupos)
+-- Modificadores
 create table if not exists public.modifiers (
   name text primary key,
   required boolean default false,
@@ -66,7 +66,7 @@ create table if not exists public.modifiers (
   updated_at timestamptz default now()
 );
 
--- Descuentos / cupones
+-- Descuentos
 create table if not exists public.discounts (
   id integer primary key,
   name text not null,
@@ -114,7 +114,7 @@ create table if not exists public.app_users (
   updated_at timestamptz default now()
 );
 
--- Órdenes / ventas (cada venta)
+-- Ordenes / ventas
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   n text not null,
@@ -136,7 +136,7 @@ create table if not exists public.orders (
   created_at timestamptz default now()
 );
 
--- Órdenes aparcadas
+-- Ordenes aparcadas
 create table if not exists public.parked_orders (
   id uuid primary key default gen_random_uuid(),
   label text not null,
@@ -148,25 +148,26 @@ create table if not exists public.parked_orders (
   created_at timestamptz default now()
 );
 
--- Configuración / Ajustes (un solo registro)
+-- Configuracion / Ajustes
 create table if not exists public.app_settings (
   id integer primary key default 1,
   data jsonb not null default '{}'::jsonb,
   updated_at timestamptz default now()
 );
 
--- ════════════════════════════════════════════════════════════════
--- 2) ÍNDICES
--- ════════════════════════════════════════════════════════════════
+-- ----------------------------------------
+-- 2) INDICES
+-- ----------------------------------------
 create index if not exists idx_products_cat on public.products(cat);
 create index if not exists idx_orders_branch on public.orders(branch_id);
 create index if not exists idx_orders_created on public.orders(created_at desc);
 create index if not exists idx_customers_phone on public.customers(phone);
 
--- ════════════════════════════════════════════════════════════════
--- 3) RLS (Row Level Security) — políticas permisivas para v1
--- ⚠️ CAMBIAR a políticas estrictas cuando agreguemos auth real.
--- ════════════════════════════════════════════════════════════════
+-- ----------------------------------------
+-- 3) RLS (Row Level Security)
+-- v1: politicas permisivas (cualquier anon puede leer/escribir)
+-- Cambiar a estrictas antes de produccion real.
+-- ----------------------------------------
 
 alter table public.branches enable row level security;
 alter table public.categories enable row level security;
@@ -179,7 +180,6 @@ alter table public.orders enable row level security;
 alter table public.parked_orders enable row level security;
 alter table public.app_settings enable row level security;
 
--- v1: anon puede leer y escribir todo (prototipo)
 do $$
 declare t text;
 begin
@@ -189,27 +189,30 @@ begin
   end loop;
 end$$;
 
--- ════════════════════════════════════════════════════════════════
--- 4) REALTIME (publicación para sync en vivo)
--- ════════════════════════════════════════════════════════════════
-alter publication supabase_realtime add table public.orders;
-alter publication supabase_realtime add table public.products;
-alter publication supabase_realtime add table public.customers;
-alter publication supabase_realtime add table public.parked_orders;
+-- ----------------------------------------
+-- 4) REALTIME
+-- ----------------------------------------
+do $$
+begin
+  begin alter publication supabase_realtime add table public.orders; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.products; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.customers; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.parked_orders; exception when duplicate_object then null; end;
+end$$;
 
--- ════════════════════════════════════════════════════════════════
--- 5) SEED INICIAL (Sucursales, Categorías, Productos, Usuarios)
--- ════════════════════════════════════════════════════════════════
+-- ----------------------------------------
+-- 5) SEED INICIAL
+-- ----------------------------------------
 
 -- Sucursales
 insert into public.branches (id, name, emoji, class, addr, tel, hours, principal, status)
 values
-  ('centro', 'Centro', '🌸', 'c1', 'Av. Reforma 134 · Col. Centro', '55 1234 5678', '11:00 – 22:00', true, 'open'),
-  ('polanco', 'Polanco', '🥤', 'c2', 'Masaryk 312 · Polanco', '55 5544 9012', '10:00 – 23:00', false, 'open'),
-  ('roma', 'Roma Norte', '🍓', 'c3', 'Álvaro Obregón 88 · Roma Nte.', '55 7788 3344', '12:00 – 23:30', false, 'open')
+  ('centro', 'Centro', '🌸', 'c1', 'Av. Reforma 134 · Col. Centro', '55 1234 5678', '11:00 - 22:00', true, 'open'),
+  ('polanco', 'Polanco', '🥤', 'c2', 'Masaryk 312 · Polanco', '55 5544 9012', '10:00 - 23:00', false, 'open'),
+  ('roma', 'Roma Norte', '🍓', 'c3', 'Alvaro Obregon 88 · Roma Nte.', '55 7788 3344', '12:00 - 23:30', false, 'open')
 on conflict (id) do nothing;
 
--- Categorías
+-- Categorias
 insert into public.categories (name, emoji, position) values
   ('Frutas', '🍓', 1),
   ('Especiales LFM', '🍰', 2),
@@ -224,21 +227,21 @@ insert into public.app_users (pin, nombre, alias, rol, emoji, color) values
   ('3333', 'Luis', 'Luis', 'cajero', '🧑‍🍳', '#E67A8A')
 on conflict (pin) do nothing;
 
--- Productos demo (los 13 originales)
-insert into public.products (id, name, cat, price, desc, img, mods, active) values
+-- Productos demo
+insert into public.products (id, name, cat, price, "desc", img, mods, active) values
   (1, 'Fresas', 'Frutas', 99, 'Elige base y toppings.', 'img/products/fresas.png', '["Tamaño","Bases","Toppings Incluidos","Extra Premium"]'::jsonb, true),
   (2, 'Platanos', 'Frutas', 99, 'Elige base y toppings.', 'img/products/platanos.png', '["Tamaño","Bases","Toppings Incluidos","Extra Premium"]'::jsonb, true),
-  (3, 'Combinado', 'Frutas', 109, 'Fresas + plátano.', 'img/products/combinado.png', '["Tamaño","Bases","Toppings Incluidos","Extra Premium"]'::jsonb, true),
-  (4, 'La Caramelita', 'Especiales LFM', 149, 'Plátano, crema, caramelo.', 'img/products/caramelita.png', '["Extra Premium"]'::jsonb, true),
+  (3, 'Combinado', 'Frutas', 109, 'Fresas + platano.', 'img/products/combinado.png', '["Tamaño","Bases","Toppings Incluidos","Extra Premium"]'::jsonb, true),
+  (4, 'La Caramelita', 'Especiales LFM', 149, 'Platano, crema, caramelo.', 'img/products/caramelita.png', '["Extra Premium"]'::jsonb, true),
   (5, 'La Cookie Lover', 'Especiales LFM', 159, 'Fresas, crema, Oreo.', 'img/products/cookie-lover.png', '["Extra Premium"]'::jsonb, true),
   (6, 'Lady Lotus', 'Especiales LFM', 159, 'Fresas, caramelo, Lotus.', 'img/products/lady-lotus.png', '["Extra Premium"]'::jsonb, true),
-  (7, 'La Mas Mexa', 'Especiales LFM', 149, 'Fresas, plátano, mazapán.', 'img/products/mas-mexa.png', '["Extra Premium"]'::jsonb, true),
-  (8, 'La Mil Leches', 'Especiales LFM', 169, 'El clásico elevado.', null, '["Extra Premium"]'::jsonb, true),
+  (7, 'La Mas Mexa', 'Especiales LFM', 149, 'Fresas, platano, mazapan.', 'img/products/mas-mexa.png', '["Extra Premium"]'::jsonb, true),
+  (8, 'La Mil Leches', 'Especiales LFM', 169, 'El clasico elevado.', null, '["Extra Premium"]'::jsonb, true),
   (9, 'La Pistachona', 'Especiales LFM', 189, 'Fresas, pistache, Dubai.', 'img/products/pistachona.png', '["Extra Premium"]'::jsonb, true),
   (10, 'La Presumida', 'Especiales LFM', 159, 'Nutella, ferrero, avellana.', 'img/products/presumida.png', '["Extra Premium"]'::jsonb, true),
   (11, 'Agua Mineral', 'Bebidas', 50, '355ml.', null, '[]'::jsonb, true),
   (12, 'Agua Natural', 'Bebidas', 50, 'Alcalina 500ml.', null, '[]'::jsonb, true),
-  (13, 'Cafe de Olla', 'Bebidas', 45, 'Canela y piloncillo · 12oz.', 'img/products/cafe.png', '[]'::jsonb, true)
+  (13, 'Cafe de Olla', 'Bebidas', 45, 'Canela y piloncillo - 12oz.', 'img/products/cafe.png', '[]'::jsonb, true)
 on conflict (id) do nothing;
 
 -- Modificadores
@@ -251,11 +254,10 @@ on conflict (name) do nothing;
 
 -- Descuentos demo
 insert into public.discounts (id, name, description, type, value, active) values
-  (1, '-10% estudiantes', 'Código ESTUDIANTE · lun-vie 14-17h', 'percent', 10, true),
-  (2, '2x$250 Fresas Chico', 'Combo · todos los días', 'combo', 250, true),
-  (3, '-$30 primera compra', 'App · un uso por cliente', 'fixed', 30, false)
+  (1, '-10% estudiantes', 'Codigo ESTUDIANTE - lun-vie 14-17h', 'percent', 10, true),
+  (2, '2x$250 Fresas Chico', 'Combo - todos los dias', 'combo', 250, true),
+  (3, '-$30 primera compra', 'App - un uso por cliente', 'fixed', 30, false)
 on conflict (id) do nothing;
 
--- Listo!
--- Si todo salió OK verás en la salida del SQL Editor algo como
--- "Success. No rows returned" y luego al consultar las tablas tendrás los datos.
+-- LISTO. Deberias ver "Success. No rows returned"
+-- Verifica en Table Editor que aparezcan las 10 tablas con datos.

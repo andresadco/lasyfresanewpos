@@ -1,0 +1,249 @@
+/* ═══════════════════════════════════════════════════════════════
+   LADY FRESA — DESIGN TOKENS v2
+   Sistema compartido: POS, Admin, Dashboard, Mobile
+   Todos los valores son ajustables aquí sin tocar componentes.
+═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── BRAND ──────────────────────────────────────────────── */
+  --brand-red:         #A6182E;
+  --brand-red-deep:    #6D1020;
+  --brand-red-soft:    #FBE4E9;
+  --brand-red-tint:    #FDF2F5;
+  --brand-green:       #053A0A;
+  --brand-green-soft:  #E1EFE3;
+  --brand-cream:       #FDF6F7;
+  --brand-cream-deep:  #F6E9EB;
+
+  /* ── NEUTRALS (cool-warm balanced, NO red tint) ─────────── */
+  --ink-900: #1A1115;  /* text primary */
+  --ink-700: #3D2B30;  /* text secondary */
+  --ink-500: #7A6468;  /* text tertiary / meta */
+  --ink-300: #C4B5B8;  /* hints, disabled */
+  --ink-200: #E6DCDE;  /* borders */
+  --ink-100: #F1EBEC;  /* subtle fills */
+  --ink-050: #F9F5F6;  /* canvas */
+  --paper:   #FFFFFF;  /* surface */
+
+  /* ── SEMANTIC ───────────────────────────────────────────── */
+  --success:      #1B7A2E;
+  --success-soft: #E0F2E4;
+  --warning:      #9A6B07;
+  --warning-soft: #FBEDCF;
+  --danger:       #B3172C;
+  --danger-soft:  #FBE4E9;
+  --info:         #2A6670;
+  --info-soft:    #DEEEF1;
+  --accent:       #534AB7;   /* premium indicator */
+  --accent-soft:  #ECEAFB;
+
+  /* ── SURFACE / CANVAS ───────────────────────────────────── */
+  --bg:          var(--brand-cream);
+  --surface:     var(--paper);
+  --surface-alt: var(--ink-050);
+  --border:      var(--ink-200);
+  --border-strong: var(--ink-300);
+
+  /* ── TYPE ───────────────────────────────────────────────── */
+  --font-display: 'Bebas Neue', 'Arial Narrow', sans-serif;
+  --font-body:    'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Tipografía escala */
+  --fs-micro:   11px;
+  --fs-caption: 12px;
+  --fs-body:    14px;
+  --fs-body-lg: 16px;
+  --fs-title:   18px;
+  --fs-h3:      22px;
+  --fs-h2:      28px;
+  --fs-h1:      34px;
+  --fs-display: 48px;
+  --fs-hero:    72px;
+
+  --lh-tight:  1.1;
+  --lh-snug:   1.25;
+  --lh-normal: 1.45;
+  --lh-relaxed: 1.6;
+
+  --tracking-tight:  -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.04em;
+  --tracking-wider:  0.1em;
+  --tracking-display: 0.08em;
+
+  /* ── SPACING (4px scale) ────────────────────────────────── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-7:  32px;
+  --sp-8:  40px;
+  --sp-9:  48px;
+  --sp-10: 64px;
+  --sp-11: 80px;
+
+  /* ── RADIUS ─────────────────────────────────────────────── */
+  --r-xs:  6px;
+  --r-sm:  10px;
+  --r-md:  14px;
+  --r-lg:  18px;
+  --r-xl:  24px;
+  --r-2xl: 32px;
+  --r-pill: 999px;
+
+  /* ── SHADOWS (warm-tinted, low chroma) ──────────────────── */
+  --shadow-0: none;
+  --shadow-1: 0 1px 2px rgba(26, 17, 21, 0.04), 0 1px 1px rgba(26, 17, 21, 0.03);
+  --shadow-2: 0 2px 6px rgba(26, 17, 21, 0.06), 0 1px 2px rgba(26, 17, 21, 0.04);
+  --shadow-3: 0 8px 20px rgba(26, 17, 21, 0.08), 0 2px 4px rgba(26, 17, 21, 0.04);
+  --shadow-4: 0 18px 40px rgba(26, 17, 21, 0.14), 0 6px 10px rgba(26, 17, 21, 0.06);
+  --shadow-brand-glow: 0 0 0 3px rgba(166, 24, 46, 0.18);
+  --shadow-success-glow: 0 0 0 3px rgba(27, 122, 46, 0.22);
+
+  /* ── TOUCH TARGETS ──────────────────────────────────────── */
+  --tap-sm:  40px;
+  --tap-md:  48px;
+  --tap-lg:  56px;
+  --tap-xl:  64px;
+  --tap-2xl: 72px;
+
+  /* ── MOTION ─────────────────────────────────────────────── */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.83, 0, 0.17, 1);
+  --dur-xs:  120ms;
+  --dur-sm:  180ms;
+  --dur-md:  260ms;
+  --dur-lg:  420ms;
+  --dur-xl:  640ms;
+
+  /* ── Z-INDEX SCALE ──────────────────────────────────────── */
+  --z-sticky:    10;
+  --z-overlay:   100;
+  --z-sheet:     101;
+  --z-toast:     150;
+  --z-flash:     200;
+
+  /* ── SAFE AREAS ─────────────────────────────────────────── */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESET
+═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  font-family: var(--font-body);
+  color: var(--ink-900);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button { font-family: inherit; color: inherit; cursor: pointer; background: none; border: none; }
+input, textarea, select { font-family: inherit; color: inherit; }
+
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENT PRIMITIVES (compartidos entre apps)
+═══════════════════════════════════════════════════════════════ */
+
+/* Button scale */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--sp-2);
+  height: var(--tap-md);
+  padding: 0 var(--sp-5);
+  border-radius: var(--r-md);
+  font-weight: 600;
+  font-size: var(--fs-body);
+  letter-spacing: 0;
+  transition: transform var(--dur-xs) var(--ease-out),
+              background-color var(--dur-xs) linear,
+              box-shadow var(--dur-sm) var(--ease-out);
+  cursor: pointer;
+  user-select: none;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; pointer-events: none; }
+
+.btn-primary {
+  background: var(--brand-red);
+  color: #fff;
+  box-shadow: var(--shadow-2);
+}
+.btn-primary:active { background: var(--brand-red-deep); }
+
+.btn-secondary {
+  background: var(--paper);
+  color: var(--ink-900);
+  border: 1px solid var(--border);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-700);
+}
+
+.btn-lg { height: var(--tap-lg); padding: 0 var(--sp-6); font-size: var(--fs-body-lg); }
+.btn-xl { height: var(--tap-xl); padding: 0 var(--sp-7); font-family: var(--font-display); font-size: 20px; letter-spacing: var(--tracking-display); }
+
+/* Card */
+.card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-1);
+}
+
+/* Pill */
+.pill {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+}
+.pill-danger  { background: var(--danger-soft);  color: var(--brand-red-deep); }
+.pill-success { background: var(--success-soft); color: var(--success); }
+.pill-warning { background: var(--warning-soft); color: var(--warning); }
+.pill-info    { background: var(--info-soft);    color: var(--info); }
+.pill-neutral { background: var(--ink-100);      color: var(--ink-700); }
+.pill-accent  { background: var(--accent-soft);  color: var(--accent); }
+
+/* Input */
+.input {
+  width: 100%;
+  height: var(--tap-md);
+  padding: 0 var(--sp-4);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--fs-body);
+  color: var(--ink-900);
+  outline: none;
+  transition: border-color var(--dur-sm) var(--ease-out),
+              box-shadow var(--dur-sm) var(--ease-out);
+}
+.input:focus { border-color: var(--brand-red); box-shadow: var(--shadow-brand-glow); }
+.input::placeholder { color: var(--ink-500); }
+
+/* Display numbers (use for totals, change, price hero) */
+.num-display {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  font-feature-settings: 'tnum' 1;
+}
