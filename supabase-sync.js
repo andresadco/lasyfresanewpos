@@ -245,9 +245,24 @@
       img: (p.img && !p.img.startsWith('blob:')) ? p.img : null,
       mods: p.mods || [], active: p.active !== false, position: idx,
     }));
+    // Calcular tamaño total para detectar payloads grandes
+    const totalBytes = JSON.stringify(rows).length;
+    if(totalBytes > 1024 * 1024 * 4){
+      // Más de 4 MB → muy probable que falle el upload
+      console.warn('[LF-Sync] Payload muy grande:', (totalBytes/1024/1024).toFixed(1), 'MB');
+    }
+    // Marcar timestamp del push para que el realtime no sobrescriba inmediatamente
+    window._lastProductPush = Date.now();
     const { error } = await sb.from('products').upsert(rows, {onConflict:'id'});
-    if(error){ showSyncStatus('Error guardando', 'error'); console.error(error); }
-    else showSyncStatus('Guardado ✓', 'ok');
+    if(error){
+      showSyncStatus('Error guardando', 'error');
+      console.error('[LF-Sync] pushProducts error:', error);
+      if(typeof showToast === 'function'){
+        showToast('⚠ Error guardando: ' + (error.message || error.code || 'desconocido'), 0, '⚠️');
+      }
+    } else {
+      showSyncStatus('Guardado ✓', 'ok');
+    }
   }
 
   async function pushCategories(){
@@ -493,10 +508,10 @@
     await sb.from('app_settings').upsert([{ id:1, data: AJ, updated_at: new Date().toISOString() }], {onConflict:'id'});
   }
 
-  // ── EXPONER FUNCIONES (debounced) ─────────────────────────────
+  // ── EXPONER FUNCIONES ─────────────────────────────
   window.LFSync = {
     load: loadFromSupabase,
-    pushProducts: debounce(pushProducts, 800),
+    pushProducts, // sin debounce: cambios de productos (incl. imagen) deben subir inmediato
     pushCategories: debounce(pushCategories, 800),
     pushModifiers: debounce(pushModifiers, 800),
     pushDiscounts: debounce(pushDiscounts, 800),
@@ -590,6 +605,10 @@
     sb.channel('lf-products').on('postgres_changes',
       { event:'*', schema:'public', table:'products' },
       () => {
+        // Si acabamos de hacer push, ignorar el eco (3 segundos de gracia)
+        if(window._lastProductPush && (Date.now() - window._lastProductPush) < 3000){
+          return;
+        }
         sb.from('products').select('*').order('position').then(({data}) => {
           if(!data || typeof PRODUCTS === 'undefined') return;
           PRODUCTS.length = 0;

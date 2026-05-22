@@ -452,6 +452,9 @@ body[data-rol="admin"] .tb-user-rol { color: #C9942D; }
   font-size: var(--fs-caption); font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 6px rgba(166,24,46,0.35);
+}
+/* Animación solo cuando se aplica la clase .just-added */
+.prod-qty-badge.just-added {
   animation: badgePop var(--dur-md) var(--ease-spring);
 }
 @keyframes badgePop {
@@ -12001,7 +12004,7 @@ function deleteProd(){
     }
   });
 }
-function saveProd(){
+async function saveProd(){
   const d = PROD_EDIT.draft;
   if(!d.name || !d.name.trim()){ showToast('Falta el nombre', 0, '⚠️'); return; }
   if(!d.price || d.price<=0){ showToast('Precio inválido', 0, '⚠️'); return; }
@@ -12012,12 +12015,29 @@ function saveProd(){
     const idx = PRODUCTS.findIndex(p=>p.id===PROD_EDIT.id);
     if(idx>=0) PRODUCTS[idx] = d;
   }
-  // Persistir local + Supabase
-  if(typeof window.persistAll === 'function') window.persistAll();
+  // Guardar en localStorage primero (síncrono)
+  try {
+    localStorage.setItem('lf_PRODUCTS', JSON.stringify(PRODUCTS));
+  } catch(e){
+    showToast('⚠ Error: localStorage lleno', 0, '⚠️');
+    console.error('localStorage err:', e);
+  }
+  // Subir a Supabase explícitamente (await para esperar resultado real)
+  if(window.LFSync && window.LFSync.pushProducts){
+    showToast('Subiendo a la nube…', 0, '☁');
+    try {
+      await window.LFSync.pushProducts();
+      showToast(`${d.name} guardado en la nube ✓`, 0, '✓');
+    } catch(e){
+      showToast('⚠ Error subiendo: ' + (e.message || 'desconocido'), 0, '⚠️');
+      console.error('push err:', e);
+    }
+  } else {
+    showToast(`${d.name} guardado (solo local)`, 0, '⚠');
+  }
   closeProdEditor();
   $('#admin-main').innerHTML = renderAdminSection('productos');
   if(typeof renderProducts==='function') renderProducts();
-  showToast(isNew?`${d.name} creado`:`${d.name} guardado`, 0, '✓');
   vibrate(20);
 }
 
@@ -12642,9 +12662,18 @@ function resetDemo(){
   Object.keys(localStorage).filter(k => k.startsWith('lf_')).forEach(k => localStorage.removeItem(k));
   location.reload();
 }
-// Auto-save cada 3 segundos (usa lookup dinámico para que supabase-sync.js pueda interceptar)
-setInterval(() => { if(typeof window.persistAll === 'function') window.persistAll(); }, 3000);
-// Save al cerrar / cambiar pestaña
+// Auto-save a localStorage cada 30 segundos (backup, no llama pushes a Supabase)
+// Los push a Supabase suceden explícitamente en cada save (saveProd, etc.)
+setInterval(() => {
+  try {
+    if(typeof PRODUCTS !== 'undefined') localStorage.setItem('lf_PRODUCTS', JSON.stringify(PRODUCTS));
+    if(typeof BRANCHES !== 'undefined') localStorage.setItem('lf_BRANCHES', JSON.stringify(BRANCHES));
+    if(typeof AJ !== 'undefined') localStorage.setItem('lf_AJ', JSON.stringify(AJ));
+    if(typeof INV_MOCK !== 'undefined') localStorage.setItem('lf_INV', JSON.stringify(INV_MOCK));
+    localStorage.setItem('lf_saved_at', Date.now());
+  } catch(e) {}
+}, 30000);
+// Save al cerrar / cambiar pestaña (sí dispara push para no perder cambios)
 window.addEventListener('beforeunload', () => { if(typeof window.persistAll === 'function') window.persistAll(); });
 window.addEventListener('visibilitychange', () => { if(document.hidden && typeof window.persistAll === 'function') window.persistAll(); });
 
