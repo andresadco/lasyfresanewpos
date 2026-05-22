@@ -5589,11 +5589,12 @@ body.drawer-open .od-backdrop {
     <div class="tb-brand">LF</div>
     <div>
       <div class="tb-order-num">Inventario</div>
-      <div class="tb-meta"><span class="tb-dot" style="background:var(--warning);"></span><span id="inv-alerts">3 productos con stock bajo</span></div>
+      <div class="tb-meta"><span class="tb-dot" id="inv-alert-dot"></span><span id="inv-alerts">—</span></div>
     </div>
     <div style="margin-left:auto;display:flex;gap:var(--sp-2);">
       <button class="btn btn-secondary" onclick="openMermaModal()">📋 Merma</button>
-      <button class="btn btn-primary" onclick="openEntradaModal()">+ Entrada</button>
+      <button class="btn btn-secondary" onclick="openEntradaModal()">📦 Entrada</button>
+      <button class="btn btn-primary" onclick="openNewInvItem()">+ Nuevo</button>
       <button class="btn btn-secondary" onclick="closeInventario()">← POS</button>
     </div>
   </div>
@@ -5608,13 +5609,13 @@ body.drawer-open .od-backdrop {
     <input class="adm-search" id="inv-search" placeholder="Buscar insumo…" oninput="renderInvList()" style="max-width:280px;">
   </div>
 
-  <div class="hist-summary">
-    <div class="hs-kpi"><div class="hs-k">Insumos</div><div class="hs-v">42</div></div>
-    <div class="hs-kpi"><div class="hs-k">Stock bajo</div><div class="hs-v" style="color:var(--warning);">3</div></div>
-    <div class="hs-kpi"><div class="hs-k">Crítico</div><div class="hs-v" style="color:var(--danger);">1</div></div>
-    <div class="hs-kpi"><div class="hs-k">Valor total</div><div class="hs-v">$18,420</div></div>
-    <div class="hs-kpi"><div class="hs-k">Mermas mes</div><div class="hs-v">$340</div></div>
-    <div class="hs-kpi"><div class="hs-k">Última entrada</div><div class="hs-v" style="font-size:16px;">Hoy 08:30</div></div>
+  <div class="hist-summary" id="inv-summary">
+    <div class="hs-kpi"><div class="hs-k">Insumos</div><div class="hs-v" id="inv-kpi-total">0</div></div>
+    <div class="hs-kpi"><div class="hs-k">Stock bajo</div><div class="hs-v" style="color:var(--warning);" id="inv-kpi-bajo">0</div></div>
+    <div class="hs-kpi"><div class="hs-k">Crítico</div><div class="hs-v" style="color:var(--danger);" id="inv-kpi-critico">0</div></div>
+    <div class="hs-kpi"><div class="hs-k">Valor total</div><div class="hs-v" id="inv-kpi-valor">$0</div></div>
+    <div class="hs-kpi"><div class="hs-k">Categorías</div><div class="hs-v" id="inv-kpi-cats">0</div></div>
+    <div class="hs-kpi"><div class="hs-k">Sin stock</div><div class="hs-v" id="inv-kpi-cero">0</div></div>
   </div>
 
   <div class="inv-body" id="inv-list"></div>
@@ -8056,15 +8057,27 @@ function renderAdminSection(sec){
     const totalOrders = Object.values(branchKPIs).reduce((s,b)=>s+b.ordenesHoy, 0);
     const totalSemana = Object.values(branchKPIs).reduce((s,b)=>s+b.semana, 0);
     const maxToday = Math.max(1, ...Object.values(branchKPIs).map(b=>b.today));
+    // Mejor sucursal hoy = la de mayor venta
+    let bestBranch = null;
+    BRANCHES.forEach(b => {
+      const k = branchKPIs[b.id];
+      if(!k) return;
+      if(!bestBranch || k.today > (branchKPIs[bestBranch.id]?.today || 0)){
+        bestBranch = b;
+      }
+    });
+    const bestLabel = bestBranch && (branchKPIs[bestBranch.id]?.today > 0)
+      ? `${bestBranch.emoji} ${bestBranch.name}`
+      : '—';
     const cards = BRANCHES.map(b => {
       const k = branchKPIs[b.id] || { today:0, ordenesHoy:0, ticket:0, vsAyer:0, semana:0, clubActivos:0, top:[] };
       return `
-      <div class="suc-card ${b.principal?'principal':''}" onclick="switchBranch('${b.id}')">
-        <div class="suc-card-head">
+      <div class="suc-card ${b.principal?'principal':''}">
+        <div class="suc-card-head" onclick="switchBranch('${b.id}')" style="cursor:pointer;">
           <div class="suc-card-emoji bp-emoji ${b.class}" style="width:48px;height:48px;">${b.emoji}</div>
           <div style="flex:1;min-width:0;">
-            <div class="suc-card-name">${b.name}</div>
-            <div class="suc-card-addr">${b.addr}</div>
+            <div class="suc-card-name">${sanitize(b.name)}</div>
+            <div class="suc-card-addr">${sanitize(b.addr || '')}</div>
             <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
               <span class="suc-card-status ${b.status==='open'?'suc-status-on':'suc-status-off'}">● ${b.status==='open'?'Abierto':'Cerrado'}</span>
               ${b.principal?'<span class="suc-card-status" style="background:var(--brand-red-soft);color:var(--brand-red-deep);">PRINCIPAL</span>':''}
@@ -8079,8 +8092,8 @@ function renderAdminSection(sec){
           <div><div class="suc-stat-k">Club activos</div><div class="suc-stat-v" style="font-size:18px;">${k.clubActivos}</div></div>
         </div>
         <div class="suc-card-foot">
-          <button class="btn btn-secondary" style="flex:1;font-size:12px;" onclick="event.stopPropagation();showToast('Editando ' + '${b.name}', 0, '✏️')">Editar</button>
-          <button class="btn btn-secondary" style="flex:1;font-size:12px;" onclick="event.stopPropagation();showToast('Reporte ' + '${b.name}', 0, '📊')">Ver reporte</button>
+          <button class="btn btn-secondary" style="flex:1;font-size:12px;" onclick="openBranchEditor('${b.id}')">Editar</button>
+          <button class="btn btn-secondary" style="flex:1;font-size:12px;" onclick="openBranchReport('${b.id}')">Ver reporte</button>
         </div>
       </div>
     `;}).join('');
@@ -8088,7 +8101,7 @@ function renderAdminSection(sec){
       const k = branchKPIs[b.id] || { today:0, ordenesHoy:0 };
       return `
       <div class="suc-bar-row">
-        <div class="suc-bar-name">${b.emoji} ${b.name}</div>
+        <div class="suc-bar-name">${b.emoji} ${sanitize(b.name)}</div>
         <div class="suc-bar-track"><div class="suc-bar-fill ${i===1?'':i===2?'alt':'alt2'}" style="width:${(k.today/maxToday*100)}%;">$${k.today.toLocaleString()}</div></div>
         <div class="suc-bar-amt">${k.ordenesHoy} órd.</div>
       </div>
@@ -8097,8 +8110,8 @@ function renderAdminSection(sec){
       const k = branchKPIs[b.id] || { top: [] };
       return `
       <div class="suc-top-card">
-        <div class="suc-top-h">${b.emoji} ${b.name} · top hoy</div>
-        ${k.top.length ? k.top.map((p,i)=>`<div class="suc-top-row"><div class="suc-top-rk">${i+1}</div><div class="suc-top-name">${p.n}</div><div class="suc-top-qty">${p.q}u</div></div>`).join('') : '<div style="font-size:11px;color:var(--ink-500);padding:8px 0;">Sin ventas hoy</div>'}
+        <div class="suc-top-h">${b.emoji} ${sanitize(b.name)} · top hoy</div>
+        ${k.top.length ? k.top.map((p,i)=>`<div class="suc-top-row"><div class="suc-top-rk">${i+1}</div><div class="suc-top-name">${sanitize(p.n)}</div><div class="suc-top-qty">${p.q}u</div></div>`).join('') : '<div style="font-size:11px;color:var(--ink-500);padding:8px 0;">Sin ventas hoy</div>'}
       </div>
     `;}).join('');
     return `
@@ -8108,10 +8121,10 @@ function renderAdminSection(sec){
         <div class="adm-stat"><div class="adm-stat-k">Red total · hoy</div><div class="adm-stat-v">$${totalToday.toLocaleString()}</div></div>
         <div class="adm-stat"><div class="adm-stat-k">Órdenes hoy</div><div class="adm-stat-v">${totalOrders}</div></div>
         <div class="adm-stat"><div class="adm-stat-k">Semana</div><div class="adm-stat-v">$${totalSemana.toLocaleString()}</div></div>
-        <div class="adm-stat"><div class="adm-stat-k">Mejor sucursal hoy</div><div class="adm-stat-v" style="font-size:22px;">🥤 Polanco</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Mejor sucursal hoy</div><div class="adm-stat-v" style="font-size:22px;">${bestLabel}</div></div>
       </div>
       <div class="suc-grid">${cards}
-        <div class="suc-card" style="border-style:dashed;background:var(--ink-050);display:flex;align-items:center;justify-content:center;min-height:160px;cursor:pointer;" onclick="showToast('Próximamente · alta de sucursal', 0, '➕')">
+        <div class="suc-card" style="border-style:dashed;background:var(--ink-050);display:flex;align-items:center;justify-content:center;min-height:160px;cursor:pointer;" onclick="openBranchEditor(null)">
           <div style="text-align:center;color:var(--ink-500);"><div style="font-size:32px;">➕</div><div style="margin-top:8px;font-weight:700;">Nueva sucursal</div></div>
         </div>
       </div>
@@ -8800,10 +8813,9 @@ function renderClientDetail(c){
 }
 
 /* ─── INVENTARIO ─── */
-// Catálogo inicial de insumos. Editable desde la app.
-// TODO: sincronizar con tabla `inventory` en Supabase (similar a productos/clientes).
+// Catálogo de insumos. Se sincroniza con tabla `inventory` en Supabase.
 let INV = { filter:'todos' };
-const INV_MOCK = [
+let INV_MOCK = [
   // Frutas
   {sku:'FR-001', name:'Fresa fresca', cat:'Frutas', ico:'🍓', qty:12.5, unit:'kg', min:8, max:30, cost:85},
   {sku:'FR-002', name:'Plátano', cat:'Frutas', ico:'🍌', qty:6.2, unit:'kg', min:5, max:15, cost:28},
@@ -8852,6 +8864,44 @@ function setInvFilter(f, btn){
 }
 function renderInvList(){
   const q = ($('#inv-search')?.value || '').toLowerCase();
+
+  // Calcular KPIs sobre TODO el inventario (no solo filtrado)
+  const total = INV_MOCK.length;
+  const bajo = INV_MOCK.filter(i => statusOf(i) === 'bajo').length;
+  const critico = INV_MOCK.filter(i => statusOf(i) === 'critico').length;
+  const cero = INV_MOCK.filter(i => Number(i.qty) === 0).length;
+  const valor = INV_MOCK.reduce((s,i) => s + (Number(i.qty)||0) * (Number(i.cost)||0), 0);
+  const cats = new Set(INV_MOCK.map(i => i.cat).filter(c => c)).size;
+
+  // Actualizar KPIs en el header
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  set('inv-kpi-total', total);
+  set('inv-kpi-bajo', bajo);
+  set('inv-kpi-critico', critico);
+  set('inv-kpi-valor', '$' + Math.round(valor).toLocaleString());
+  set('inv-kpi-cats', cats);
+  set('inv-kpi-cero', cero);
+
+  // Banner de alerts arriba
+  const alertEl = document.getElementById('inv-alerts');
+  const dotEl = document.getElementById('inv-alert-dot');
+  if(alertEl && dotEl){
+    if(critico > 0){
+      alertEl.textContent = `${critico} insumo${critico>1?'s':''} en nivel crítico`;
+      dotEl.style.background = 'var(--danger)';
+    } else if(bajo > 0){
+      alertEl.textContent = `${bajo} insumo${bajo>1?'s':''} con stock bajo`;
+      dotEl.style.background = 'var(--warning)';
+    } else if(total === 0){
+      alertEl.textContent = 'Sin insumos registrados';
+      dotEl.style.background = 'var(--ink-400)';
+    } else {
+      alertEl.textContent = 'Todos los insumos OK';
+      dotEl.style.background = 'var(--success)';
+    }
+  }
+
+  // Filtrar para mostrar
   const filtered = INV_MOCK.filter(i => {
     const st = statusOf(i);
     if(INV.filter==='bajo' && st!=='bajo') return false;
@@ -8861,20 +8911,20 @@ function renderInvList(){
     return true;
   });
   const groups = {};
-  filtered.forEach(i => { (groups[i.cat] = groups[i.cat] || []).push(i); });
+  filtered.forEach(i => { (groups[i.cat || 'Sin categoría'] = groups[i.cat || 'Sin categoría'] || []).push(i); });
   $('#inv-list').innerHTML = Object.keys(groups).length ? Object.entries(groups).map(([cat,items])=>`
     <div class="inv-group">
-      <div class="inv-group-h">${cat} <span class="inv-group-count">${items.length}</span></div>
+      <div class="inv-group-h">${sanitize(cat)} <span class="inv-group-count">${items.length}</span></div>
       <div class="inv-grid">
         ${items.map(i => {
           const st = statusOf(i);
-          const pct = Math.min(100, (i.qty/i.max)*100);
+          const pct = i.max > 0 ? Math.min(100, (i.qty/i.max)*100) : 0;
           const barColor = st==='critico'?'var(--danger)':(st==='bajo'?'var(--warning)':'var(--success)');
           return `
             <div class="inv-cell ${st}" onclick="openInvDetail('${i.sku}')">
               <div class="inv-ico">${i.ico}</div>
               <div class="inv-body-c">
-                <div class="inv-name">${i.name}</div>
+                <div class="inv-name">${sanitize(i.name)}</div>
                 <div class="inv-sku">${i.sku} · mín ${i.min} ${i.unit}</div>
                 <div class="inv-bar"><div class="inv-bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
               </div>
@@ -8883,7 +8933,7 @@ function renderInvList(){
         }).join('')}
       </div>
     </div>
-  `).join('') : '<div class="empty-state"><div class="icon">🔍</div><p>Sin insumos</p></div>';
+  `).join('') : '<div class="empty-state" style="padding:48px;text-align:center;color:var(--ink-500);"><div style="font-size:48px;opacity:0.4;">📦</div><p style="margin-top:12px;">Sin insumos · usa "+ Nuevo" para agregar el primero</p></div>';
 }
 
 /* ─── SPLIT BILL ─── */
@@ -9379,7 +9429,145 @@ function switchBranch(id){
   // Update other UIs that show the branch name
   document.querySelectorAll('[data-branch-name]').forEach(el => el.textContent = b.name);
   closeSheet('branch');
+  if(typeof window.persistAll === 'function') window.persistAll();
   showToast('Operando desde ' + b.name, 0, b.emoji);
+}
+
+// Editor de sucursal (crear nueva o editar existente)
+function openBranchEditor(id){
+  const isNew = !id;
+  const existing = !isNew ? BRANCHES.find(x => x.id === id) : null;
+  const draft = isNew
+    ? { id:'', name:'', emoji:'🏪', class:'c1', addr:'', tel:'', hours:'11:00 – 22:00', principal: false, status:'open' }
+    : { ...existing };
+  window._branchDraft = draft;
+
+  let ov = document.getElementById('ov-branch');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ov-branch';
+  ov.className = 'overlay open';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
+  ov.innerHTML = `
+    <div style="background:var(--surface);border-radius:24px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;padding:var(--sp-5);box-shadow:var(--shadow-3);">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--sp-4);">
+        <div>
+          <div style="font-family:var(--font-display);font-size:24px;letter-spacing:-0.5px;color:var(--ink-900);">${isNew?'Nueva sucursal':'Editar '+sanitize(existing.name)}</div>
+          <div style="font-size:13px;color:var(--ink-500);margin-top:4px;">${isNew?'Crea una nueva sucursal':'Modifica los datos y guarda'}</div>
+        </div>
+        <button onclick="document.getElementById('ov-branch').remove()" style="border:none;background:var(--ink-100);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
+      </div>
+      ${isNew ? `
+        <div style="margin-bottom:var(--sp-3);">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">ID interno</div>
+          <input id="be-id" placeholder="Ej. balbuena (sin espacios, minúsculas)" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;font-family:var(--font-body);" oninput="window._branchDraft.id=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
+        </div>
+      ` : ''}
+      <div style="margin-bottom:var(--sp-3);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Nombre</div>
+        <input id="be-name" value="${(draft.name||'').replace(/"/g,'&quot;')}" placeholder="Ej. Balbuena" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;font-family:var(--font-body);" oninput="window._branchDraft.name=this.value">
+      </div>
+      <div style="display:grid;grid-template-columns:80px 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Emoji</div>
+          <input id="be-emoji" value="${draft.emoji}" maxlength="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:20px;text-align:center;" oninput="window._branchDraft.emoji=this.value">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Dirección</div>
+          <input id="be-addr" value="${(draft.addr||'').replace(/"/g,'&quot;')}" placeholder="Calle, colonia, ciudad" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;font-family:var(--font-body);" oninput="window._branchDraft.addr=this.value">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Teléfono</div>
+          <input id="be-tel" value="${(draft.tel||'').replace(/"/g,'&quot;')}" placeholder="55 1234 5678" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;font-family:var(--font-body);" oninput="window._branchDraft.tel=this.value">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Horario</div>
+          <input id="be-hours" value="${(draft.hours||'').replace(/"/g,'&quot;')}" placeholder="11:00 – 22:00" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;font-family:var(--font-body);" oninput="window._branchDraft.hours=this.value">
+        </div>
+      </div>
+      <div style="display:flex;gap:var(--sp-3);margin-bottom:var(--sp-4);">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" ${draft.principal?'checked':''} onchange="window._branchDraft.principal=this.checked"> Sucursal principal
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" ${draft.status==='open'?'checked':''} onchange="window._branchDraft.status=this.checked?'open':'closed'"> Abierta
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;">
+        ${!isNew && BRANCHES.length > 1 ? `<button onclick="deleteBranch('${id}')" style="padding:14px 18px;border-radius:var(--r-md);border:1.5px solid var(--brand-red);background:var(--surface);color:var(--brand-red);font-weight:600;cursor:pointer;">Eliminar</button>` : ''}
+        <button onclick="document.getElementById('ov-branch').remove()" style="flex:1;padding:14px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);font-weight:600;cursor:pointer;">Cancelar</button>
+        <button onclick="saveBranch(${isNew?'null':"'"+id+"'"})" style="flex:1;padding:14px;border-radius:var(--r-md);border:none;background:var(--brand-red);color:#fff;font-weight:600;cursor:pointer;">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  setTimeout(() => document.getElementById(isNew?'be-id':'be-name')?.focus(), 100);
+}
+function saveBranch(id){
+  const d = window._branchDraft || {};
+  if(!d.name || !d.name.trim()){ showToast('Falta el nombre', 0, '⚠️'); return; }
+  if(!id){
+    // Nueva: validar id
+    if(!d.id || !d.id.trim()){ showToast('Falta el ID interno', 0, '⚠️'); return; }
+    if(BRANCHES.find(b => b.id === d.id)){ showToast('Ya existe una sucursal con ese ID', 0, '⚠️'); return; }
+  }
+  if(id){
+    // Editar existente
+    const b = BRANCHES.find(x => x.id === id);
+    if(!b) return;
+    Object.assign(b, d);
+    // Si marcamos esta como principal, desmarcar las otras
+    if(d.principal) BRANCHES.filter(x => x.id !== id).forEach(x => x.principal = false);
+  } else {
+    // Crear nueva
+    // Si es principal, desmarcar otras
+    if(d.principal) BRANCHES.forEach(x => x.principal = false);
+    // Si no tiene clase, asignar una rotativa
+    if(!d.class) d.class = 'c' + ((BRANCHES.length % 3) + 1);
+    BRANCHES.push({ ...d, today:0, ordenesHoy:0, ticket:0, vsAyer:0, semana:0, clubActivos:0, top:[] });
+  }
+  if(typeof window.persistAll === 'function') window.persistAll();
+  document.getElementById('ov-branch')?.remove();
+  // Re-render
+  if(typeof setAdminSec === 'function') setAdminSec(ADMIN.sec);
+  showToast(`Sucursal ${id?'actualizada':'creada'} · ${d.name}`, 0, '✓');
+}
+function deleteBranch(id){
+  if(BRANCHES.length <= 1){ showToast('Debe quedar al menos 1 sucursal', 0, '⚠️'); return; }
+  const b = BRANCHES.find(x => x.id === id);
+  if(!b) return;
+  if(!confirm(`¿Eliminar la sucursal "${b.name}"?\nEsto no borra las ventas históricas asignadas a ella.`)) return;
+  const idx = BRANCHES.findIndex(x => x.id === id);
+  if(idx >= 0) BRANCHES.splice(idx, 1);
+  // Si era la activa, cambiar a la primera
+  if(currentBranchId === id) currentBranchId = BRANCHES[0].id;
+  if(typeof window.persistAll === 'function') window.persistAll();
+  // Pedirle a Supabase que también borre (vía push)
+  if(window.LFSync && window.LFSync.deleteBranch){
+    window.LFSync.deleteBranch(id);
+  }
+  document.getElementById('ov-branch')?.remove();
+  if(typeof setAdminSec === 'function') setAdminSec(ADMIN.sec);
+  showToast(`Sucursal "${b.name}" eliminada`, 0, '🗑');
+}
+
+// "Ver reporte" de una sucursal: switchea y abre dashboard filtrado
+function openBranchReport(id){
+  const b = BRANCHES.find(x => x.id === id);
+  if(!b) return;
+  if(currentBranchId !== id){
+    currentBranchId = id;
+    const lbl = $('#tb-branch-label'); if(lbl) lbl.textContent = b.name;
+    document.querySelectorAll('[data-branch-name]').forEach(el => el.textContent = b.name);
+  }
+  // Cerrar admin y abrir dashboard
+  if(typeof closeAdmin === 'function') closeAdmin();
+  setTimeout(() => {
+    if(typeof openDashboard === 'function') openDashboard();
+    showToast(`Reporte de ${b.name}`, 0, b.emoji);
+  }, 200);
 }
 
 function openClub(){
@@ -10963,50 +11151,325 @@ function openNuevoCliente(){
 
 // Inventario merma / entrada
 function openMermaModal(){
-  quickPrompt({
-    title:'Registrar merma', sub:'Producto dado de baja',
-    fields:[
-      {label:'Producto / SKU', ph:'Fresa kg'},
-      {label:'Cantidad', type:'number', ph:'1'},
-      {label:'Motivo', ph:'Caducidad'},
-    ],
-    okLabel:'Registrar',
-    onOk: ([p,q,m])=> showToast(`Merma · ${p} (${q})`, 0, '📉')
+  if(!INV_MOCK.length){ showToast('Agrega insumos primero', 0, '⚠️'); return; }
+  let ov = document.getElementById('ov-merma');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ov-merma';
+  ov.className = 'overlay open';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
+  ov.innerHTML = `
+    <div style="background:var(--surface);border-radius:24px;max-width:420px;width:100%;padding:var(--sp-5);box-shadow:var(--shadow-3);">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--sp-4);">
+        <div>
+          <div style="font-family:var(--font-display);font-size:22px;">Registrar merma</div>
+          <div style="font-size:13px;color:var(--ink-500);margin-top:2px;">Insumo dado de baja (caducidad, daño...)</div>
+        </div>
+        <button onclick="document.getElementById('ov-merma').remove()" style="border:none;background:var(--ink-100);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
+      </div>
+      <div style="margin-bottom:var(--sp-3);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Insumo</div>
+        <select id="merma-sku" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;background:var(--surface);">
+          ${INV_MOCK.map(i => `<option value="${i.sku}">${i.ico} ${i.name} (${i.qty} ${i.unit} disponibles)</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:var(--sp-3);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Cantidad a dar de baja</div>
+        <input id="merma-qty" type="number" step="0.1" min="0" placeholder="0" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:18px;text-align:center;">
+      </div>
+      <div style="margin-bottom:var(--sp-4);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Motivo</div>
+        <input id="merma-reason" placeholder="Ej. caducidad, daño, accidente" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="document.getElementById('ov-merma').remove()" style="flex:1;padding:14px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);font-weight:600;cursor:pointer;">Cancelar</button>
+        <button onclick="confirmMerma()" style="flex:1;padding:14px;border-radius:var(--r-md);border:none;background:var(--brand-red);color:#fff;font-weight:600;cursor:pointer;">Registrar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+}
+function confirmMerma(){
+  const sku = document.getElementById('merma-sku').value;
+  const qty = parseFloat(document.getElementById('merma-qty').value) || 0;
+  const reason = (document.getElementById('merma-reason').value || '').trim();
+  if(qty <= 0){ showToast('Cantidad inválida', 0, '⚠️'); return; }
+  const i = INV_MOCK.find(x => x.sku === sku);
+  if(!i) return;
+  if(qty > i.qty){
+    if(!confirm(`Solo hay ${i.qty} ${i.unit} disponibles. ¿Dar de baja todo el stock?`)) return;
+    i.qty = 0;
+  } else {
+    i.qty -= qty;
+  }
+  // Registrar en AJ.invHistory (historial de movimientos)
+  if(!AJ.invHistory) AJ.invHistory = [];
+  AJ.invHistory.push({
+    type:'merma', sku, qty, reason,
+    time: new Date().toISOString(),
+    user: (ROLE.user || {}).alias || '—',
   });
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushInventoryItem) window.LFSync.pushInventoryItem(i);
+  document.getElementById('ov-merma').remove();
+  if(typeof renderInvList === 'function') renderInvList();
+  showToast(`Merma registrada · ${qty} ${i.unit} de ${i.name}`, 0, '📉');
 }
 function openEntradaModal(){
-  quickPrompt({
-    title:'Entrada de mercancía', sub:'Compra a proveedor',
-    fields:[
-      {label:'Producto / SKU', ph:'Fresa kg'},
-      {label:'Cantidad', type:'number', ph:'10'},
-      {label:'Costo unit', type:'number', ph:'45.00'},
-    ],
-    okLabel:'Registrar',
-    onOk: ([p,q,c])=> showToast(`Entrada · ${p} ×${q}`, 0, '📦')
+  if(!INV_MOCK.length){ showToast('Agrega insumos primero', 0, '⚠️'); return; }
+  let ov = document.getElementById('ov-entrada');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ov-entrada';
+  ov.className = 'overlay open';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
+  ov.innerHTML = `
+    <div style="background:var(--surface);border-radius:24px;max-width:420px;width:100%;padding:var(--sp-5);box-shadow:var(--shadow-3);">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--sp-4);">
+        <div>
+          <div style="font-family:var(--font-display);font-size:22px;">Entrada de mercancía</div>
+          <div style="font-size:13px;color:var(--ink-500);margin-top:2px;">Suma stock al inventario</div>
+        </div>
+        <button onclick="document.getElementById('ov-entrada').remove()" style="border:none;background:var(--ink-100);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
+      </div>
+      <div style="margin-bottom:var(--sp-3);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Insumo</div>
+        <select id="entrada-sku" onchange="document.getElementById('entrada-cost').value=INV_MOCK.find(i=>i.sku===this.value)?.cost||''" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;background:var(--surface);">
+          ${INV_MOCK.map(i => `<option value="${i.sku}">${i.ico} ${i.name} (${i.qty} ${i.unit})</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Cantidad</div>
+          <input id="entrada-qty" type="number" step="0.1" min="0" placeholder="0" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:18px;text-align:center;">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Costo unitario</div>
+          <input id="entrada-cost" type="number" step="0.01" min="0" placeholder="0.00" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;">
+        </div>
+      </div>
+      <div style="margin-bottom:var(--sp-4);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Proveedor / nota</div>
+        <input id="entrada-nota" placeholder="Ej. Central de abastos, factura 123" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="document.getElementById('ov-entrada').remove()" style="flex:1;padding:14px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);font-weight:600;cursor:pointer;">Cancelar</button>
+        <button onclick="confirmEntrada()" style="flex:1;padding:14px;border-radius:var(--r-md);border:none;background:var(--brand-red);color:#fff;font-weight:600;cursor:pointer;">Registrar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  setTimeout(() => { const el = document.getElementById('entrada-sku'); if(el) el.dispatchEvent(new Event('change')); }, 50);
+}
+function confirmEntrada(){
+  const sku = document.getElementById('entrada-sku').value;
+  const qty = parseFloat(document.getElementById('entrada-qty').value) || 0;
+  const cost = parseFloat(document.getElementById('entrada-cost').value) || 0;
+  const nota = (document.getElementById('entrada-nota').value || '').trim();
+  if(qty <= 0){ showToast('Cantidad inválida', 0, '⚠️'); return; }
+  const i = INV_MOCK.find(x => x.sku === sku);
+  if(!i) return;
+  i.qty = (Number(i.qty) || 0) + qty;
+  // Actualizar costo si se especificó (promedio ponderado simple)
+  if(cost > 0) i.cost = cost;
+  if(!AJ.invHistory) AJ.invHistory = [];
+  AJ.invHistory.push({
+    type:'entrada', sku, qty, cost, nota,
+    time: new Date().toISOString(),
+    user: (ROLE.user || {}).alias || '—',
   });
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushInventoryItem) window.LFSync.pushInventoryItem(i);
+  document.getElementById('ov-entrada').remove();
+  if(typeof renderInvList === 'function') renderInvList();
+  showToast(`Entrada · +${qty} ${i.unit} de ${i.name}`, 0, '📦');
 }
 
 // Detalle inventario
 function openInvDetail(sku){
-  if(typeof INVENTARIO==='undefined'){ showToast('SKU '+sku, 0, '📦'); return; }
-  const i = INVENTARIO.find(x=>x.sku===sku);
-  if(!i){ showToast('SKU '+sku, 0, '📦'); return; }
-  quickPrompt({
-    title: i.name, sub:`SKU ${i.sku} · ${i.qty} ${i.unit} disponible`,
-    fields:[
-      {label:'Existencia actual', type:'number', value:i.qty},
-      {label:'Mín / Máx', value:`${i.min} / ${i.max}`},
-      {label:'Costo unitario', type:'number', value:i.cost},
-    ],
-    okLabel:'Guardar',
-    onOk: ([qty,_,costo])=>{
-      i.qty = parseFloat(qty)||i.qty;
-      i.cost = parseFloat(costo)||i.cost;
-      if(typeof renderInv==='function') renderInv();
-      showToast('Actualizado · '+i.name, 0, '✓');
-    }
-  });
+  if(typeof INV_MOCK === 'undefined'){ showToast('SKU '+sku, 0, '📦'); return; }
+  const i = INV_MOCK.find(x => x.sku === sku);
+  if(!i){ showToast('SKU '+sku+' no encontrado', 0, '⚠️'); return; }
+
+  let ov = document.getElementById('ov-inv');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ov-inv';
+  ov.className = 'overlay open';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
+  window._invDraft = { ...i };
+
+  ov.innerHTML = `
+    <div style="background:var(--surface);border-radius:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:var(--sp-5);box-shadow:var(--shadow-3);">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--sp-4);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:40px;line-height:1;">${i.ico}</div>
+          <div>
+            <div style="font-family:var(--font-display);font-size:22px;letter-spacing:-0.5px;color:var(--ink-900);">${sanitize(i.name)}</div>
+            <div style="font-size:12px;color:var(--ink-500);margin-top:2px;">${i.sku} · ${i.cat}</div>
+          </div>
+        </div>
+        <button onclick="document.getElementById('ov-inv').remove()" style="border:none;background:var(--ink-100);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
+      </div>
+
+      <div style="margin-bottom:var(--sp-3);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Existencia actual · ${i.unit}</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="invAdjQty(-1)" style="width:40px;height:40px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);font-size:18px;cursor:pointer;">−</button>
+          <input id="inv-qty" type="number" step="0.1" value="${i.qty}" style="flex:1;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:24px;text-align:center;font-family:var(--font-display);" oninput="window._invDraft.qty=parseFloat(this.value)||0">
+          <button onclick="invAdjQty(1)" style="width:40px;height:40px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);font-size:18px;cursor:pointer;">+</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Mín stock</div>
+          <input id="inv-min" type="number" step="0.1" value="${i.min}" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.min=parseFloat(this.value)||0">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Máx stock</div>
+          <input id="inv-max" type="number" step="0.1" value="${i.max}" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.max=parseFloat(this.value)||0">
+        </div>
+      </div>
+
+      <div style="margin-bottom:var(--sp-3);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Costo unitario ($)</div>
+        <input id="inv-cost" type="number" step="0.01" value="${i.cost}" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.cost=parseFloat(this.value)||0">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:var(--sp-4);">
+        <button onclick="deleteInvItem('${sku}')" style="padding:14px 16px;border-radius:var(--r-md);border:1.5px solid var(--brand-red);background:var(--surface);color:var(--brand-red);font-weight:600;cursor:pointer;">Eliminar</button>
+        <button onclick="document.getElementById('ov-inv').remove()" style="flex:1;padding:14px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);font-weight:600;cursor:pointer;">Cancelar</button>
+        <button onclick="saveInvItem('${sku}')" style="flex:1;padding:14px;border-radius:var(--r-md);border:none;background:var(--brand-red);color:#fff;font-weight:600;cursor:pointer;">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+}
+function invAdjQty(delta){
+  const inp = document.getElementById('inv-qty');
+  if(!inp) return;
+  const cur = parseFloat(inp.value) || 0;
+  const next = Math.max(0, cur + delta);
+  inp.value = next;
+  window._invDraft.qty = next;
+}
+function saveInvItem(sku){
+  const d = window._invDraft;
+  if(!d) return;
+  const i = INV_MOCK.find(x => x.sku === sku);
+  if(!i) return;
+  Object.assign(i, d);
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushInventoryItem) window.LFSync.pushInventoryItem(i);
+  document.getElementById('ov-inv')?.remove();
+  if(typeof renderInvList === 'function') renderInvList();
+  showToast(`${i.name} actualizado`, 0, '✓');
+}
+function deleteInvItem(sku){
+  const i = INV_MOCK.find(x => x.sku === sku);
+  if(!i) return;
+  if(!confirm(`¿Eliminar "${i.name}" del inventario?`)) return;
+  const idx = INV_MOCK.findIndex(x => x.sku === sku);
+  if(idx >= 0) INV_MOCK.splice(idx, 1);
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.deleteInventoryItem) window.LFSync.deleteInventoryItem(sku);
+  document.getElementById('ov-inv')?.remove();
+  if(typeof renderInvList === 'function') renderInvList();
+  showToast(`${i.name} eliminado`, 0, '🗑');
+}
+function openNewInvItem(){
+  window._invDraft = {
+    sku: '', name:'', cat:'Frutas', ico:'📦',
+    qty:0, unit:'u', min:0, max:0, cost:0
+  };
+  let ov = document.getElementById('ov-inv-new');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ov-inv-new';
+  ov.className = 'overlay open';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
+  // Categorías únicas que ya existen
+  const cats = [...new Set(INV_MOCK.map(i => i.cat).filter(c => c))];
+  if(!cats.length) cats.push('Frutas','Toppings','Galletas','Bebidas','Desechables');
+  ov.innerHTML = `
+    <div style="background:var(--surface);border-radius:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:var(--sp-5);box-shadow:var(--shadow-3);">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--sp-4);">
+        <div style="font-family:var(--font-display);font-size:22px;letter-spacing:-0.5px;color:var(--ink-900);">Nuevo insumo</div>
+        <button onclick="document.getElementById('ov-inv-new').remove()" style="border:none;background:var(--ink-100);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
+      </div>
+      <div style="display:grid;grid-template-columns:80px 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Emoji</div>
+          <input id="invn-ico" value="📦" maxlength="3" style="width:100%;padding:12px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:20px;text-align:center;" oninput="window._invDraft.ico=this.value">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Nombre</div>
+          <input id="invn-name" placeholder="Ej. Fresa fresca" autofocus style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.name=this.value">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">SKU</div>
+          <input id="invn-sku" placeholder="Ej. FR-001" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;text-transform:uppercase;" oninput="window._invDraft.sku=this.value.toUpperCase()">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Categoría</div>
+          <input id="invn-cat" list="invn-cat-list" value="Frutas" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.cat=this.value">
+          <datalist id="invn-cat-list">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Cantidad inicial</div>
+          <input id="invn-qty" type="number" step="0.1" value="0" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.qty=parseFloat(this.value)||0">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Unidad</div>
+          <input id="invn-unit" list="invn-unit-list" value="u" placeholder="kg, u, L, paq" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.unit=this.value">
+          <datalist id="invn-unit-list"><option value="u"><option value="kg"><option value="g"><option value="L"><option value="ml"><option value="paq"></datalist>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-4);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Mín</div>
+          <input id="invn-min" type="number" step="0.1" value="0" style="width:100%;padding:12px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.min=parseFloat(this.value)||0">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Máx</div>
+          <input id="invn-max" type="number" step="0.1" value="0" style="width:100%;padding:12px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.max=parseFloat(this.value)||0">
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-500);font-weight:700;margin-bottom:6px;">Costo $</div>
+          <input id="invn-cost" type="number" step="0.01" value="0" style="width:100%;padding:12px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:14px;" oninput="window._invDraft.cost=parseFloat(this.value)||0">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="document.getElementById('ov-inv-new').remove()" style="flex:1;padding:14px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);font-weight:600;cursor:pointer;">Cancelar</button>
+        <button onclick="saveNewInvItem()" style="flex:1;padding:14px;border-radius:var(--r-md);border:none;background:var(--brand-red);color:#fff;font-weight:600;cursor:pointer;">Crear</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  setTimeout(() => document.getElementById('invn-name')?.focus(), 100);
+}
+function saveNewInvItem(){
+  const d = window._invDraft;
+  if(!d) return;
+  if(!d.name?.trim()){ showToast('Falta el nombre', 0, '⚠️'); return; }
+  if(!d.sku?.trim()){
+    // Auto-generar SKU si no se especifica
+    const prefix = (d.cat || 'IT').slice(0,2).toUpperCase();
+    const num = String(INV_MOCK.filter(i => i.sku.startsWith(prefix)).length + 1).padStart(3,'0');
+    d.sku = `${prefix}-${num}`;
+  }
+  if(INV_MOCK.find(i => i.sku === d.sku)){ showToast('Ya existe un insumo con ese SKU', 0, '⚠️'); return; }
+  INV_MOCK.push({ ...d });
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushInventoryItem) window.LFSync.pushInventoryItem(d);
+  document.getElementById('ov-inv-new')?.remove();
+  if(typeof renderInvList === 'function') renderInvList();
+  showToast(`${d.name} creado`, 0, '✓');
 }
 
 // Cliente CRM: ajustar puntos / nota / VIP
@@ -12034,6 +12497,7 @@ function persistAll(){
     if(typeof AJ !== 'undefined') localStorage.setItem('lf_AJ', JSON.stringify(AJ));
     if(typeof BRANCHES !== 'undefined') localStorage.setItem('lf_BRANCHES', JSON.stringify(BRANCHES));
     if(typeof parked !== 'undefined') localStorage.setItem('lf_parked', JSON.stringify(parked));
+    if(typeof INV_MOCK !== 'undefined') localStorage.setItem('lf_INV', JSON.stringify(INV_MOCK));
     localStorage.setItem('lf_saved_at', Date.now());
   } catch(e){ console.warn('Persist failed:', e); }
 }
@@ -12065,6 +12529,7 @@ function loadAll(){
     if(typeof AJ !== 'undefined') load('AJ', AJ);
     if(typeof BRANCHES !== 'undefined') load('BRANCHES', BRANCHES);
     if(typeof parked !== 'undefined') load('parked', parked);
+    if(typeof INV_MOCK !== 'undefined') load('INV', INV_MOCK);
     return true;
   } catch(e){ console.warn('Load failed:', e); return false; }
 }

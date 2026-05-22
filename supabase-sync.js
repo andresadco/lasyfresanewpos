@@ -65,7 +65,7 @@
   async function loadFromSupabase(){
     showSyncStatus('Sincronizando…', 'sync');
     try {
-      const [products, categories, modifiers, discounts, customers, users, branches, parkedOrders, settings, orders] = await Promise.all([
+      const [products, categories, modifiers, discounts, customers, users, branches, parkedOrders, settings, orders, inventory] = await Promise.all([
         sb.from('products').select('*').order('position', {ascending:true}),
         sb.from('categories').select('*').order('position', {ascending:true}),
         sb.from('modifiers').select('*'),
@@ -76,6 +76,7 @@
         sb.from('parked_orders').select('*').order('created_at', {ascending:false}),
         sb.from('app_settings').select('*').eq('id',1).maybeSingle(),
         sb.from('orders').select('*').order('created_at', {ascending:false}).limit(100),
+        sb.from('inventory').select('*').order('cat', {ascending:true}),
       ]);
 
       // PRODUCTS
@@ -185,11 +186,28 @@
         }));
       }
 
+      // INVENTARIO
+      if(inventory.data && typeof INV_MOCK !== 'undefined'){
+        INV_MOCK.length = 0;
+        inventory.data.forEach(i => INV_MOCK.push({
+          sku: i.sku,
+          name: i.name,
+          cat: i.cat || '',
+          ico: i.ico || '📦',
+          qty: Number(i.qty) || 0,
+          unit: i.unit || 'u',
+          min: Number(i.min_qty) || 0,
+          max: Number(i.max_qty) || 0,
+          cost: Number(i.cost) || 0,
+        }));
+      }
+
       // Re-renderizar
       if(typeof renderProducts === 'function') renderProducts();
       if(typeof renderCats === 'function') renderCats();
       if(typeof renderOrderDrawer === 'function') renderOrderDrawer();
       if(typeof renderLoginChips === 'function') renderLoginChips();
+      if(typeof renderInvList === 'function' && document.querySelector('#screen-inventario.active')) renderInvList();
 
       showSyncStatus('Conectado · ' + (products.data?.length||0) + ' productos', 'ok');
       setTimeout(()=>{ const el=document.getElementById('lf-sync-status'); if(el) el.style.opacity='0.6'; }, 2500);
@@ -292,6 +310,45 @@
     }));
     const { error } = await sb.from('branches').upsert(rows, {onConflict:'id'});
     if(error) console.error('[LF-Sync] branches:', error);
+  }
+
+  async function deleteBranch(id){
+    if(!id) return;
+    const { error } = await sb.from('branches').delete().eq('id', id);
+    if(error) console.error('[LF-Sync] deleteBranch:', error);
+  }
+
+  async function pushInventory(){
+    if(typeof INV_MOCK === 'undefined' || !INV_MOCK.length) return;
+    const rows = INV_MOCK.map(i => ({
+      sku: i.sku,
+      name: i.name,
+      cat: i.cat || '',
+      ico: i.ico || '📦',
+      qty: Number(i.qty) || 0,
+      unit: i.unit || 'u',
+      min_qty: Number(i.min) || 0,
+      max_qty: Number(i.max) || 0,
+      cost: Number(i.cost) || 0,
+    }));
+    const { error } = await sb.from('inventory').upsert(rows, {onConflict:'sku'});
+    if(error) console.error('[LF-Sync] inventory:', error);
+  }
+  async function pushInventoryItem(item){
+    if(!item || !item.sku) return;
+    const row = {
+      sku: item.sku, name: item.name, cat: item.cat || '', ico: item.ico || '📦',
+      qty: Number(item.qty) || 0, unit: item.unit || 'u',
+      min_qty: Number(item.min) || 0, max_qty: Number(item.max) || 0,
+      cost: Number(item.cost) || 0,
+    };
+    const { error } = await sb.from('inventory').upsert([row], {onConflict:'sku'});
+    if(error) console.error('[LF-Sync] inventory item:', error);
+  }
+  async function deleteInventoryItem(sku){
+    if(!sku) return;
+    const { error } = await sb.from('inventory').delete().eq('sku', sku);
+    if(error) console.error('[LF-Sync] deleteInventory:', error);
   }
 
   // ── COLA OFFLINE para órdenes que no pudieron subir ───────────
@@ -435,6 +492,10 @@
     pushAllCustomers: debounce(pushAllCustomers, 1200),
     pushUsers: debounce(pushUsers, 800),
     pushBranches: debounce(pushBranches, 800),
+    deleteBranch,
+    pushInventory: debounce(pushInventory, 800),
+    pushInventoryItem,
+    deleteInventoryItem,
     pushOrder, // se llama inmediato al cerrar venta
     updateOrder, // para refunds y cambios de status — inmediato
     fetchTodayOrders, // ventas del día (para corte de caja)
@@ -559,6 +620,7 @@
       window.LFSync.pushAllCustomers();
       window.LFSync.pushUsers();
       window.LFSync.pushBranches();
+      window.LFSync.pushInventory();
       window.LFSync.pushParked();
       window.LFSync.pushSettings();
     };

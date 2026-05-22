@@ -155,6 +155,22 @@ create table if not exists public.app_settings (
   updated_at timestamptz default now()
 );
 
+-- Inventario / Insumos
+create table if not exists public.inventory (
+  sku text primary key,
+  name text not null,
+  cat text default '',
+  ico text default '📦',
+  qty numeric default 0,
+  unit text default 'u',
+  min_qty numeric default 0,
+  max_qty numeric default 0,
+  cost numeric default 0,
+  branch_id text references public.branches(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- ----------------------------------------
 -- 2) INDICES
 -- ----------------------------------------
@@ -179,11 +195,12 @@ alter table public.app_users enable row level security;
 alter table public.orders enable row level security;
 alter table public.parked_orders enable row level security;
 alter table public.app_settings enable row level security;
+alter table public.inventory enable row level security;
 
 do $$
 declare t text;
 begin
-  for t in select unnest(array['branches','categories','products','modifiers','discounts','customers','app_users','orders','parked_orders','app_settings']) loop
+  for t in select unnest(array['branches','categories','products','modifiers','discounts','customers','app_users','orders','parked_orders','app_settings','inventory']) loop
     execute format('drop policy if exists "open_all_%I" on public.%I', t, t);
     execute format('create policy "open_all_%I" on public.%I for all using (true) with check (true)', t, t);
   end loop;
@@ -198,6 +215,7 @@ begin
   begin alter publication supabase_realtime add table public.products; exception when duplicate_object then null; end;
   begin alter publication supabase_realtime add table public.customers; exception when duplicate_object then null; end;
   begin alter publication supabase_realtime add table public.parked_orders; exception when duplicate_object then null; end;
+  begin alter publication supabase_realtime add table public.inventory; exception when duplicate_object then null; end;
 end$$;
 
 -- REPLICA IDENTITY FULL hace que los eventos UPDATE incluyan todos los campos del row,
@@ -206,6 +224,7 @@ alter table public.orders replica identity full;
 alter table public.products replica identity full;
 alter table public.customers replica identity full;
 alter table public.parked_orders replica identity full;
+alter table public.inventory replica identity full;
 
 -- ----------------------------------------
 -- 5) SEED INICIAL
@@ -264,6 +283,32 @@ insert into public.discounts (id, name, description, type, value, active) values
   (2, '2x$250 Fresas Chico', 'Combo - todos los dias', 'combo', 250, true),
   (3, '-$30 primera compra', 'App - un uso por cliente', 'fixed', 30, false)
 on conflict (id) do nothing;
+
+-- Inventario inicial (insumos típicos de Lady Fresa)
+insert into public.inventory (sku, name, cat, ico, qty, unit, min_qty, max_qty, cost) values
+  ('FR-001', 'Fresa fresca', 'Frutas', '🍓', 12.5, 'kg', 8, 30, 85),
+  ('FR-002', 'Plátano', 'Frutas', '🍌', 6.2, 'kg', 5, 15, 28),
+  ('FR-003', 'Mango', 'Frutas', '🥭', 4.8, 'kg', 5, 12, 45),
+  ('TP-001', 'Chocolate líquido', 'Toppings', '🍫', 3.2, 'L', 2, 8, 120),
+  ('TP-002', 'Lechera', 'Toppings', '🥛', 5.5, 'L', 3, 10, 95),
+  ('TP-003', 'Crema batida', 'Toppings', '🍦', 0.8, 'L', 2, 6, 140),
+  ('TP-004', 'Caramelo', 'Toppings', '🍯', 1.4, 'L', 1, 5, 110),
+  ('TP-005', 'Nutella', 'Toppings', '🟫', 2.1, 'kg', 1, 4, 220),
+  ('GD-001', 'Oreo', 'Galletas', '🍪', 42, 'u', 30, 120, 3),
+  ('GD-002', 'Lotus', 'Galletas', '🟤', 18, 'u', 20, 60, 5),
+  ('GD-003', 'KitKat', 'Galletas', '🟥', 24, 'u', 15, 50, 8),
+  ('GD-004', 'Ferrero Rocher', 'Galletas', '🟤', 16, 'u', 10, 40, 12),
+  ('GD-005', 'Mazapán', 'Galletas', '🟡', 34, 'u', 20, 80, 4),
+  ('GD-006', 'M&Ms', 'Galletas', '🔴', 1.2, 'kg', 0.5, 3, 180),
+  ('BB-001', 'Agua natural 600ml', 'Bebidas', '💧', 48, 'u', 30, 120, 8),
+  ('BB-002', 'Agua mineral', 'Bebidas', '🫗', 36, 'u', 20, 80, 12),
+  ('BB-003', 'Café tostado', 'Bebidas', '☕', 2.8, 'kg', 1, 5, 320),
+  ('DS-001', 'Vaso chico 12oz', 'Desechables', '🥤', 480, 'u', 200, 1000, 2),
+  ('DS-002', 'Vaso mediano 16oz', 'Desechables', '🥤', 320, 'u', 200, 1000, 3),
+  ('DS-003', 'Vaso grande 22oz', 'Desechables', '🥤', 180, 'u', 150, 800, 4),
+  ('DS-004', 'Cuchara', 'Desechables', '🥄', 620, 'u', 300, 1500, 1),
+  ('DS-005', 'Servilletas', 'Desechables', '🧻', 12, 'paq', 5, 30, 28)
+on conflict (sku) do nothing;
 
 -- LISTO. Deberias ver "Success. No rows returned"
 -- Verifica en Table Editor que aparezcan las 10 tablas con datos.
