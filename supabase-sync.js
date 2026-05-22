@@ -172,9 +172,16 @@
           items: o.items || [],
           client: o.client || '',
           svc: o.svc, pay: o.pay,
+          subtotal: Number(o.subtotal) || 0,
+          discount: Number(o.discount) || 0,
+          iva: Number(o.iva) || 0,
+          fee: Number(o.fee) || 0,
           total: Number(o.total),
           status: o.status,
           refund: o.refund || null,
+          cashier_pin: o.cashier_pin || null,
+          branch_id: o.branch_id || null,
+          created_at: o.created_at,
         }));
       }
 
@@ -182,6 +189,7 @@
       if(typeof renderProducts === 'function') renderProducts();
       if(typeof renderCats === 'function') renderCats();
       if(typeof renderOrderDrawer === 'function') renderOrderDrawer();
+      if(typeof renderLoginChips === 'function') renderLoginChips();
 
       showSyncStatus('Conectado · ' + (products.data?.length||0) + ' productos', 'ok');
       setTimeout(()=>{ const el=document.getElementById('lf-sync-status'); if(el) el.style.opacity='0.6'; }, 2500);
@@ -273,6 +281,17 @@
       rol: u.rol, emoji: u.emoji, color: u.color, active: true,
     }));
     await sb.from('app_users').upsert(rows, {onConflict:'pin'});
+  }
+
+  async function pushBranches(){
+    if(typeof BRANCHES === 'undefined' || !BRANCHES.length) return;
+    const rows = BRANCHES.map(b => ({
+      id: b.id, name: b.name, emoji: b.emoji, class: b.class,
+      addr: b.addr || '', tel: b.tel || '', hours: b.hours || '',
+      principal: !!b.principal, status: b.status || 'open',
+    }));
+    const { error } = await sb.from('branches').upsert(rows, {onConflict:'id'});
+    if(error) console.error('[LF-Sync] branches:', error);
   }
 
   // ── COLA OFFLINE para órdenes que no pudieron subir ───────────
@@ -415,6 +434,7 @@
     pushCustomer,
     pushAllCustomers: debounce(pushAllCustomers, 1200),
     pushUsers: debounce(pushUsers, 800),
+    pushBranches: debounce(pushBranches, 800),
     pushOrder, // se llama inmediato al cerrar venta
     updateOrder, // para refunds y cambios de status — inmediato
     fetchTodayOrders, // ventas del día (para corte de caja)
@@ -452,9 +472,16 @@
               items: o.items || [],
               client: o.client || '',
               svc: o.svc, pay: o.pay,
+              subtotal: Number(o.subtotal) || 0,
+              discount: Number(o.discount) || 0,
+              iva: Number(o.iva) || 0,
+              fee: Number(o.fee) || 0,
               total: Number(o.total),
               status: o.status,
               refund: o.refund || null,
+              cashier_pin: o.cashier_pin || null,
+              branch_id: o.branch_id || null,
+              created_at: o.created_at,
             });
             if(typeof renderHistList === 'function' && document.querySelector('#screen-historial.active')){
               renderHistList();
@@ -531,6 +558,7 @@
       window.LFSync.pushDiscounts();
       window.LFSync.pushAllCustomers();
       window.LFSync.pushUsers();
+      window.LFSync.pushBranches();
       window.LFSync.pushParked();
       window.LFSync.pushSettings();
     };

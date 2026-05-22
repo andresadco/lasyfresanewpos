@@ -3993,14 +3993,9 @@ body.drawer-open .od-backdrop {
       <button class="pin-btn ok" onclick="pinEnter()">OK</button>
     </div>
     <div class="login-error" id="login-error"></div>
-    <div class="login-hint">
-      <div class="login-hint-t">PINs de demo · toca para entrar</div>
-      <div class="login-hint-row">
-        <button class="login-pin-chip admin" onclick="pinQuick('0000')"><span>👑</span><b>0000</b><span>Lozo · Admin</span></button>
-        <button class="login-pin-chip ger" onclick="pinQuick('1111')"><span>👩‍💼</span><b>1111</b><span>Mariana · Gerente</span></button>
-        <button class="login-pin-chip caj" onclick="pinQuick('2222')"><span>🍓</span><b>2222</b><span>Ana · Cajera</span></button>
-        <button class="login-pin-chip caj" onclick="pinQuick('3333')"><span>🧑‍🍳</span><b>3333</b><span>Luis · Cajero</span></button>
-      </div>
+    <div class="login-hint" id="login-quick-chips">
+      <div class="login-hint-t">Acceso rápido</div>
+      <div class="login-hint-row" id="login-quick-row"></div>
     </div>
   </div>
 </div>
@@ -4707,59 +4702,36 @@ body.drawer-open .od-backdrop {
     <button class="sheet-back" onclick="closeSheet('impresora')">‹</button>
     <div class="sheet-title-wrap">
       <div class="sheet-title">Impresora</div>
-      <div class="sheet-sub">EPSON TM-m30II · Wi-Fi</div>
+      <div class="sheet-sub" id="prn-sheet-sub">Sin configurar</div>
     </div>
-    <span class="pill pill-success"><span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>Conectada</span>
+    <span class="pill pill-neutral" id="prn-sheet-status"><span style="width:6px;height:6px;border-radius:50%;background:var(--ink-500);display:inline-block;"></span>Sin configurar</span>
   </div>
   <div class="sheet-body">
     <!-- Status grid -->
     <div class="prn-status-grid">
-      <div class="prn-stat"><div class="prn-stat-k">IP</div><div class="prn-stat-v">192.168.1.42</div></div>
-      <div class="prn-stat"><div class="prn-stat-k">Papel</div><div class="prn-stat-v" style="color:var(--success);">85%</div></div>
-      <div class="prn-stat"><div class="prn-stat-k">Temp.</div><div class="prn-stat-v">Normal</div></div>
-      <div class="prn-stat"><div class="prn-stat-k">Cola</div><div class="prn-stat-v">0 trabajos</div></div>
+      <div class="prn-stat"><div class="prn-stat-k">IP</div><div class="prn-stat-v" id="prn-info-ip">—</div></div>
+      <div class="prn-stat"><div class="prn-stat-k">Papel</div><div class="prn-stat-v" id="prn-info-paper">—</div></div>
+      <div class="prn-stat"><div class="prn-stat-k">Temp.</div><div class="prn-stat-v" id="prn-info-temp">—</div></div>
+      <div class="prn-stat"><div class="prn-stat-k">Cola</div><div class="prn-stat-v" id="prn-info-queue">0 trabajos</div></div>
     </div>
 
     <!-- Live ticket preview -->
     <div class="mod-label" style="margin-top:var(--sp-5);">Vista previa del ticket</div>
     <div class="ticket-stage">
       <div class="ticket-paper font-md" id="ticket-preview">
-    <div class="tk-center tk-logo">LADY FRESA</div>
-    <div class="tk-center tk-sub">Fresas con crema · Centro</div>
-    <div class="tk-center tk-sub">21 abr 2026 · 15:57</div>
-    <div class="tk-center tk-sub">Orden #001 · Ana</div>
-    <div class="tk-sep"></div>
-    
-      <div class="tk-row"><span>Fresas Grande</span><span>$149</span></div>
-      <div class="tk-mod">· Base: Chocolate</div><div class="tk-mod">· Oreo</div><div class="tk-mod">· Coco</div><div class="tk-mod">· Ferrero +$25</div>
-    
-      <div class="tk-row"><span>La Cookie Lover</span><span>$159</span></div>
-      <div class="tk-mod">· Lotus +$25</div>
-    
-      <div class="tk-row"><span>Agua Mineral</span><span>$50</span></div>
-      
-    
-    <div class="tk-sep"></div>
-    <div class="tk-row"><span>Subtotal</span><span>$309</span></div>
-    <div class="tk-row"><span>IVA 16%</span><span>$49</span></div>
-    <div class="tk-sep"></div>
-    <div class="tk-total-row"><span>TOTAL</span><span>$358</span></div>
-    <div class="tk-sep"></div>
-    <div class="tk-center tk-sub">¡Gracias por tu compra!<br>@ladyfresa.mx · WhatsApp 55 1234 5678</div>
-    <div class="tk-qr"></div><div class="tk-center tk-sub">Califica tu visita</div>
-  </div>
+        <div class="tk-center tk-sub">Vista previa se actualiza al hacer una venta</div>
+      </div>
     </div>
 
     <!-- Ticket customization -->
     <div class="mod-section" style="margin-top:var(--sp-5);">
       <div class="mod-label">Encabezado</div>
       <input class="input" id="prn-header" value="LADY FRESA" oninput="renderTicketPreview()" style="margin-top:var(--sp-2);">
-      <input class="input" id="prn-sub" value="Fresas con crema · Centro" oninput="renderTicketPreview()" style="margin-top:var(--sp-2);">
+      <input class="input" id="prn-sub" value="" placeholder="Subtítulo (opcional)" oninput="renderTicketPreview()" style="margin-top:var(--sp-2);">
     </div>
     <div class="mod-section">
       <div class="mod-label">Mensaje final</div>
-      <textarea class="nota-input" id="prn-footer" oninput="renderTicketPreview()">¡Gracias por tu compra!
-@ladyfresa.mx · WhatsApp 55 1234 5678</textarea>
+      <textarea class="nota-input" id="prn-footer" oninput="renderTicketPreview()">¡Gracias por tu compra!</textarea>
     </div>
     <div class="mod-section">
       <div class="mod-label">Tamaño de fuente</div>
@@ -4795,7 +4767,7 @@ body.drawer-open .od-backdrop {
     <button class="sheet-back" onclick="closeSheet('caja')">‹</button>
     <div class="sheet-title-wrap">
       <div class="sheet-title">Caja</div>
-      <div class="sheet-sub">Turno abierto · <span id="caja-turno-time">hoy 09:15</span></div>
+      <div class="sheet-sub">Turno abierto · <span id="caja-turno-time">—</span></div>
     </div>
   </div>
   <div class="sheet-body">
@@ -4809,15 +4781,17 @@ body.drawer-open .od-backdrop {
     <!-- APERTURA -->
     <div class="caja-pane" id="caja-apertura">
       <div class="caja-kpi-row">
-        <div class="caja-kpi"><div class="caja-kpi-k">Fondo inicial</div><div class="caja-kpi-v">$800</div></div>
-        <div class="caja-kpi"><div class="caja-kpi-k">Apertura</div><div class="caja-kpi-v" style="font-size:var(--fs-body);font-family:var(--font-body);font-weight:600;">09:15 · Ana</div></div>
+        <div class="caja-kpi"><div class="caja-kpi-k">Fondo inicial</div><div class="caja-kpi-v" id="caja-fondo-v">$0</div></div>
+        <div class="caja-kpi"><div class="caja-kpi-k">Apertura</div><div class="caja-kpi-v" style="font-size:var(--fs-body);font-family:var(--font-body);font-weight:600;" id="caja-apertura-v">—</div></div>
       </div>
       <div class="mod-label" style="margin-top:var(--sp-4);">Desglose del fondo</div>
-      <div class="denom-list">
-        <div class="denom-row"><span class="denom-k">10 × $50</span><span class="denom-v">$500</span></div>
-        <div class="denom-row"><span class="denom-k">3 × $100</span><span class="denom-v">$300</span></div>
+      <div class="denom-list" id="caja-fondo-desglose">
+        <div class="denom-row"><span class="denom-k" style="color:var(--ink-500);">Sin desglose registrado</span></div>
       </div>
-      <div class="caja-hint">Para abrir un nuevo turno, primero cierra el actual.</div>
+      <div style="margin-top:var(--sp-4);">
+        <button class="btn btn-primary btn-lg" style="width:100%;" onclick="openAperturaModal()" id="caja-abrir-turno-btn">Configurar fondo / abrir turno</button>
+      </div>
+      <div class="caja-hint">El fondo inicial es el efectivo con el que arranca la caja. Se usa para calcular cuánto debe haber al cierre.</div>
     </div>
 
     <!-- MOVIMIENTOS -->
@@ -4826,10 +4800,8 @@ body.drawer-open .od-backdrop {
         <button class="btn btn-secondary btn-lg" onclick="openMovModal('retiro')">➖ Retiro</button>
         <button class="btn btn-secondary btn-lg" onclick="openMovModal('deposito')">➕ Depósito</button>
       </div>
-      <div class="mov-list">
-        <div class="mov-item"><div class="mov-ico" style="background:var(--success-soft);color:var(--success);">+</div><div class="mov-body"><div class="mov-name">Fondo inicial</div><div class="mov-meta">09:15 · Ana</div></div><div class="mov-amt" style="color:var(--success);">+$800</div></div>
-        <div class="mov-item"><div class="mov-ico" style="background:var(--danger-soft);color:var(--danger);">−</div><div class="mov-body"><div class="mov-name">Retiro · proveedor fresas</div><div class="mov-meta">11:40 · Ana</div></div><div class="mov-amt" style="color:var(--danger);">−$450</div></div>
-        <div class="mov-item"><div class="mov-ico" style="background:var(--success-soft);color:var(--success);">+</div><div class="mov-body"><div class="mov-name">Depósito · cambio extra</div><div class="mov-meta">13:20 · Ana</div></div><div class="mov-amt" style="color:var(--success);">+$200</div></div>
+      <div class="mov-list" id="caja-movs-list">
+        <div style="padding:var(--sp-4);text-align:center;color:var(--ink-500);font-size:13px;">Sin movimientos registrados</div>
       </div>
     </div>
 
@@ -4838,8 +4810,8 @@ body.drawer-open .od-backdrop {
       <div class="corte-header">
         <div class="corte-summary">
           <div class="corte-sum-k">Esperado en caja</div>
-          <div class="corte-sum-v" id="corte-esperado">$4,380</div>
-          <div class="corte-breakdown">Fondo $800 + Ventas efectivo $4,030 − Retiros $450</div>
+          <div class="corte-sum-v" id="corte-esperado">$0</div>
+          <div class="corte-breakdown" id="corte-breakdown-text">Fondo $0 + Ventas efectivo $0 − Retiros $0</div>
         </div>
       </div>
 
@@ -5176,7 +5148,7 @@ body.drawer-open .od-backdrop {
     <div class="tb-brand">LF</div>
     <div>
       <div class="tb-order-num">Historial de ventas</div>
-      <div class="tb-meta"><span class="tb-dot"></span><span id="hist-day-label">Hoy · 47 órdenes · $6,820</span></div>
+      <div class="tb-meta"><span class="tb-dot"></span><span id="hist-day-label">Cargando…</span></div>
     </div>
     <div style="margin-left:auto;display:flex;gap:var(--sp-2);">
       <button class="btn btn-secondary" onclick="closeHistorial()">← POS</button>
@@ -5227,186 +5199,8 @@ body.drawer-open .od-backdrop {
 
   <div class="hist-body">
     <div class="hist-list" id="hist-list">
-    <div class="ho-row" onclick="selectHistOrder('047', this)">
-      <div>
-        <div class="ho-num">#047</div>
-        <div class="ho-time">17:42</div>
-      </div>
-      <div>
-        <div class="ho-items">🟢 La Pistachona · 💧 Agua Mineral</div>
-        <div class="ho-client">👤 Regina</div>
-      </div>
-      <span class="ho-svc">🏪 mostrador</span>
-      <span class="ho-pay" title="tarjeta">💳</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$239</div>
+      <div class="hd-empty"><div style="font-size:48px;opacity:0.4;">🧾</div><p style="margin-top:12px;color:var(--ink-500);font-size:var(--fs-body);">Cargando…</p></div>
     </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('046', this)">
-      <div>
-        <div class="ho-num">#046</div>
-        <div class="ho-time">17:28</div>
-      </div>
-      <div>
-        <div class="ho-items">🍓 Fresas ×2</div>
-        <div class="ho-client"><em style="color:var(--ink-300);">Sin nombre</em></div>
-      </div>
-      <span class="ho-svc">🛍 llevar</span>
-      <span class="ho-pay" title="efectivo">💵</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$270</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('045', this)">
-      <div>
-        <div class="ho-num">#045</div>
-        <div class="ho-time">17:14</div>
-      </div>
-      <div>
-        <div class="ho-items">🍪 La Cookie Lover · ☕ Cafe de Olla</div>
-        <div class="ho-client">👤 Dani</div>
-      </div>
-      <span class="ho-svc">🛵 delivery</span>
-      <span class="ho-pay" title="transfer">📲</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$229</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('044', this)">
-      <div>
-        <div class="ho-num">#044</div>
-        <div class="ho-time">16:58</div>
-      </div>
-      <div>
-        <div class="ho-items">🌸 Lady Lotus</div>
-        <div class="ho-client"><em style="color:var(--ink-300);">Sin nombre</em></div>
-      </div>
-      <span class="ho-svc">🏪 mostrador</span>
-      <span class="ho-pay" title="tarjeta">💳</span>
-      <span class="ho-status reembolsada">↩ Reembolsada</span>
-      <div class="ho-total">$159</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('043', this)">
-      <div>
-        <div class="ho-num">#043</div>
-        <div class="ho-time">16:47</div>
-      </div>
-      <div>
-        <div class="ho-items">🌶️ La Mas Mexa ×2 · 🫗 Agua Natural ×2</div>
-        <div class="ho-client">👤 Sofía</div>
-      </div>
-      <span class="ho-svc">🏪 mostrador</span>
-      <span class="ho-pay" title="efectivo">💵</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$398</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('042', this)">
-      <div>
-        <div class="ho-num">#042</div>
-        <div class="ho-time">16:31</div>
-      </div>
-      <div>
-        <div class="ho-items">🌰 La Presumida</div>
-        <div class="ho-client"><em style="color:var(--ink-300);">Sin nombre</em></div>
-      </div>
-      <span class="ho-svc">🛍 llevar</span>
-      <span class="ho-pay" title="efectivo">💵</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$184</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('041', this)">
-      <div>
-        <div class="ho-num">#041</div>
-        <div class="ho-time">16:12</div>
-      </div>
-      <div>
-        <div class="ho-items">🥭 Combinado ×3</div>
-        <div class="ho-client">👤 Fiesta oficina</div>
-      </div>
-      <span class="ho-svc">🛵 delivery</span>
-      <span class="ho-pay" title="transfer">📲</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$372</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('040', this)">
-      <div>
-        <div class="ho-num">#040</div>
-        <div class="ho-time">15:54</div>
-      </div>
-      <div>
-        <div class="ho-items">🍓 Fresas</div>
-        <div class="ho-client"><em style="color:var(--ink-300);">Sin nombre</em></div>
-      </div>
-      <span class="ho-svc">🏪 mostrador</span>
-      <span class="ho-pay" title="tarjeta">💳</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$204</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('039', this)">
-      <div>
-        <div class="ho-num">#039</div>
-        <div class="ho-time">15:38</div>
-      </div>
-      <div>
-        <div class="ho-items">🥛 La Mil Leches · ☕ Cafe de Olla ×2</div>
-        <div class="ho-client">👤 Luis</div>
-      </div>
-      <span class="ho-svc">🏪 mostrador</span>
-      <span class="ho-pay" title="efectivo">💵</span>
-      <span class="ho-status cancelada">✗ Cancelada</span>
-      <div class="ho-total">$284</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('038', this)">
-      <div>
-        <div class="ho-num">#038</div>
-        <div class="ho-time">15:21</div>
-      </div>
-      <div>
-        <div class="ho-items">🍮 La Caramelita</div>
-        <div class="ho-client"><em style="color:var(--ink-300);">Sin nombre</em></div>
-      </div>
-      <span class="ho-svc">🛍 llevar</span>
-      <span class="ho-pay" title="efectivo">💵</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$149</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('037', this)">
-      <div>
-        <div class="ho-num">#037</div>
-        <div class="ho-time">15:04</div>
-      </div>
-      <div>
-        <div class="ho-items">🍌 Platanos</div>
-        <div class="ho-client">👤 Marta</div>
-      </div>
-      <span class="ho-svc">🏪 mostrador</span>
-      <span class="ho-pay" title="tarjeta">💳</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$160</div>
-    </div>
-  
-    <div class="ho-row" onclick="selectHistOrder('036', this)">
-      <div>
-        <div class="ho-num">#036</div>
-        <div class="ho-time">14:47</div>
-      </div>
-      <div>
-        <div class="ho-items">🍓 Fresas ×2 · 🍌 Platanos</div>
-        <div class="ho-client"><em style="color:var(--ink-300);">Sin nombre</em></div>
-      </div>
-      <span class="ho-svc">🏪 mostrador</span>
-      <span class="ho-pay" title="efectivo">💵</span>
-      <span class="ho-status completada">✓ Completada</span>
-      <div class="ho-total">$297</div>
-    </div>
-  </div>
 
     <!-- Detail panel -->
     <aside class="hist-detail" id="hist-detail"><div class="hd-empty"><div style="font-size:48px;opacity:0.4;">🧾</div><p style="margin-top:12px;color:var(--ink-500);font-size:var(--fs-body);">Selecciona una orden para ver el detalle</p></div></aside>
@@ -6075,7 +5869,10 @@ body.drawer-open .od-backdrop {
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   DEMO DATA (mock — para prototipo de diseño)
+   SEED INICIAL (productos, modificadores, descuentos, usuarios)
+   Estos arrays se cargan al arrancar y luego son reemplazados por
+   los datos de Supabase via loadFromSupabase(). Sirven como
+   fallback offline al primer arranque.
 ═══════════════════════════════════════════════════════════════ */
 const EMOJI = {
   'Fresas':'🍓','Platanos':'🍌','Combinado':'🥭',
@@ -6194,6 +5991,23 @@ function pinKey(k){
 function pinDel(){ pinBuffer=pinBuffer.slice(0,-1); updateDots(); vibrate(10); }
 function pinQuick(p){ pinBuffer = p; updateDots(); vibrate(15); setTimeout(pinEnter, 180); }
 function updateDots(){ for(let i=0;i<4;i++) $('#pd'+i).classList.toggle('filled', i<pinBuffer.length); }
+
+// Renderiza los chips de acceso rápido desde USUARIOS reales
+function renderLoginChips(){
+  const row = document.getElementById('login-quick-row');
+  if(!row || typeof USUARIOS === 'undefined') return;
+  // Solo mostrar chips si hay 4 o menos usuarios activos (UX de quick access)
+  if(USUARIOS.length === 0 || USUARIOS.length > 6){
+    document.getElementById('login-quick-chips').style.display = 'none';
+    return;
+  }
+  const cls = { admin:'admin', gerente:'ger', cajero:'caj' };
+  row.innerHTML = USUARIOS.map(u => `
+    <button class="login-pin-chip ${cls[u.rol] || 'caj'}" onclick="pinQuick('${u.pin}')">
+      <span>${u.emoji}</span><b>${u.pin}</b><span>${sanitize(u.alias||u.nombre)} · ${u.rol.charAt(0).toUpperCase()+u.rol.slice(1)}</span>
+    </button>
+  `).join('');
+}
 function pinEnter(){
   if(pinBuffer.length<4) return;
   const user = USUARIOS.find(u => u.pin === pinBuffer);
@@ -7106,9 +6920,16 @@ function confirmarPago(){
     client: currentClub ? currentClub.name : '',
     svc: svcType,
     pay: payMethod,
+    subtotal: subtotalSinIva,
+    discount: final.disc || 0,
+    iva: ivaAmount,
+    fee: fee,
     total: final.total,
     status: 'completada',
     refund: null,
+    cashier_pin: (typeof ROLE !== 'undefined' && ROLE.user) ? ROLE.user.pin : null,
+    branch_id: typeof currentBranchId !== 'undefined' ? currentBranchId : null,
+    created_at: new Date().toISOString(),
   };
   if(typeof ORDERS_MOCK !== 'undefined'){
     ORDERS_MOCK.unshift(orderRecord);
@@ -7286,7 +7107,27 @@ function menuAction(key){
 
 /* ─── IMPRESORA ─── */
 let PRN = { font:'md' };
-function openImpresora(){ renderTicketPreview(); openSheet('impresora'); }
+function openImpresora(){
+  // Refrescar status de la impresora desde AJ.integrations
+  const ep = (AJ.integrations || {}).epson || {};
+  const connected = ep.connected;
+  const subEl = document.getElementById('prn-sheet-sub');
+  const statusEl = document.getElementById('prn-sheet-status');
+  if(subEl) subEl.textContent = connected ? `${ep.model || 'Impresora'} · ${ep.conn || ''}` : 'Sin configurar';
+  if(statusEl){
+    statusEl.className = 'pill ' + (connected ? 'pill-success' : 'pill-neutral');
+    statusEl.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:${connected?'var(--success)':'var(--ink-500)'};display:inline-block;"></span>${connected?'Conectada':'Sin configurar'}`;
+  }
+  const ipEl = document.getElementById('prn-info-ip');
+  if(ipEl) ipEl.textContent = ep.ip || '—';
+  // Preset sub con sucursal actual
+  const subInput = document.getElementById('prn-sub');
+  if(subInput && !subInput.value){
+    subInput.value = (typeof getBranch === 'function' ? getBranch().name : '') ;
+  }
+  renderTicketPreview();
+  openSheet('impresora');
+}
 function setPrn(key, val, btn){
   PRN[key] = val;
   btn.parentElement.querySelectorAll('.size-card').forEach(b=>b.classList.remove('sel'));
@@ -7297,38 +7138,57 @@ function renderTicketPreview(){
   const el = $('#ticket-preview');
   if(!el) return;
   el.className = 'ticket-paper font-' + (PRN.font||'md');
-  const showLogo = $('#prn-logo')?.checked;
-  const showMods = $('#prn-modifiers')?.checked;
-  const showQr = $('#prn-qr')?.checked;
+  const showLogo = $('#prn-logo')?.checked !== false;
+  const showMods = $('#prn-modifiers')?.checked !== false;
+  const showQr = $('#prn-qr')?.checked === true;
   const header = sanitize($('#prn-header')?.value || 'LADY FRESA');
   const sub = sanitize($('#prn-sub')?.value || '');
   const footer = sanitize($('#prn-footer')?.value || '');
   const now = new Date();
   const d = now.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
   const t = now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
-  // Sample items
-  const sample = [
-    {name:'Fresas Grande', price:149, mods:['Base: Chocolate','Oreo','Coco','Ferrero +$25']},
-    {name:'La Cookie Lover', price:159, mods:['Lotus +$25']},
-    {name:'Agua Mineral', price:50, mods:[]},
-  ];
-  const sub1 = sample.reduce((s,i)=>s+i.price,0);
-  const iva = Math.round(sub1 - sub1/1.16);
+
+  // Usar la orden actual (en construcción) o la última venta cerrada
+  let items = [];
+  let orderNum = '—';
+  let cashier = (typeof ROLE !== 'undefined' && ROLE.user) ? ROLE.user.alias : '—';
+
+  if(typeof order !== 'undefined' && order.length){
+    // Orden en construcción
+    items = order.map(it => ({
+      name: it.name + (it.tags && it.tags.find(t=>t.cat==='Tamaño') ? ' ' + it.tags.find(t=>t.cat==='Tamaño').name : ''),
+      price: it.unitPrice,
+      qty: it.qty,
+      mods: (it.tags||[]).map(tg => `${tg.name}${tg.extra>0?' +$'+tg.extra:''}`),
+    }));
+    orderNum = String(orderN).padStart(3,'0');
+  } else if(typeof ORDERS_MOCK !== 'undefined' && ORDERS_MOCK.length){
+    // Última venta cerrada
+    const last = ORDERS_MOCK[0];
+    items = (last.items || []).map(it => ({
+      name: it.name, price: it.price, qty: it.qty, mods: it.mods || [],
+    }));
+    orderNum = last.n;
+  }
+
+  const subtotal = items.reduce((s,i) => s + (i.price * (i.qty||1)), 0);
+  const iva = Math.round(subtotal - subtotal/1.16);
+
   el.innerHTML = `
     ${showLogo?`<div class="tk-center tk-logo">${header}</div>`:''}
-    <div class="tk-center tk-sub">${sub}</div>
+    ${sub ? `<div class="tk-center tk-sub">${sub}</div>` : ''}
     <div class="tk-center tk-sub">${d} · ${t}</div>
-    <div class="tk-center tk-sub">Orden #001 · Ana</div>
+    <div class="tk-center tk-sub">Orden #${orderNum} · ${sanitize(cashier)}</div>
     <div class="tk-sep"></div>
-    ${sample.map(it=>`
-      <div class="tk-row"><span>${it.name}</span><span>$${it.price}</span></div>
-      ${showMods?it.mods.map(m=>`<div class="tk-mod">· ${m}</div>`).join(''):''}
-    `).join('')}
+    ${items.length ? items.map(it=>`
+      <div class="tk-row"><span>${sanitize(it.name)}${it.qty>1?' ×'+it.qty:''}</span><span>$${(it.price*(it.qty||1))}</span></div>
+      ${showMods?it.mods.map(m=>`<div class="tk-mod">· ${sanitize(m)}</div>`).join(''):''}
+    `).join('') : '<div class="tk-center tk-sub" style="padding:20px 0;">Sin productos en la orden</div>'}
     <div class="tk-sep"></div>
-    <div class="tk-row"><span>Subtotal</span><span>$${sub1-iva}</span></div>
+    <div class="tk-row"><span>Subtotal</span><span>$${subtotal-iva}</span></div>
     <div class="tk-row"><span>IVA 16%</span><span>$${iva}</span></div>
     <div class="tk-sep"></div>
-    <div class="tk-total-row"><span>TOTAL</span><span>$${sub1}</span></div>
+    <div class="tk-total-row"><span>TOTAL</span><span>$${subtotal}</span></div>
     <div class="tk-sep"></div>
     <div class="tk-center tk-sub">${footer.replace(/\n/g,'<br>')}</div>
     ${showQr?`<div class="tk-qr"></div><div class="tk-center tk-sub">Califica tu visita</div>`:''}
@@ -7345,16 +7205,171 @@ function reprintLast(){ showToast('Reimprimiendo Orden #' + String(orderN-1).pad
 /* ─── CAJA ─── */
 let CAJA = { arqueoMode:'total', arqueoAmount:0, denoms:{} };
 const DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
-const VENTAS_EFECTIVO_MOCK = 4030;
-const FONDO_MOCK = 800;
-const RETIROS_MOCK = 450;
+
+// Estado de la caja del turno actual (persistido vía AJ → Supabase)
+function getCajaState(){
+  if(!AJ.caja) AJ.caja = { fondo: 0, fondoDesglose: {}, apertura: null, movs: [] };
+  return AJ.caja;
+}
+// Ventas efectivo de hoy calculadas desde ORDERS_MOCK
+function calcVentasEfectivoHoy(){
+  if(typeof ORDERS_MOCK === 'undefined') return 0;
+  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  let total = 0;
+  ORDERS_MOCK.forEach(o => {
+    if(o.pay !== 'efectivo') return;
+    if(o.created_at && new Date(o.created_at) < startToday) return;
+    if(o.status === 'completada') total += Number(o.total) || 0;
+    else if(o.status === 'reembolsada') total -= Number(o.refund?.amount) || Number(o.total) || 0;
+  });
+  return Math.max(0, total);
+}
+function calcRetirosHoy(){
+  const c = getCajaState();
+  return (c.movs || []).filter(m => m.type === 'retiro').reduce((s,m) => s + (Number(m.amount)||0), 0);
+}
+function calcDepositosHoy(){
+  const c = getCajaState();
+  return (c.movs || []).filter(m => m.type === 'deposito').reduce((s,m) => s + (Number(m.amount)||0), 0);
+}
 function openCaja(){
-  setCajaTab('apertura', document.querySelector('#sheet-caja .caja-tab'));
+  refreshCajaUI();
+  setCajaTab('movs', document.querySelector('#sheet-caja .caja-tab.active') || document.querySelector('#sheet-caja .caja-tab'));
   renderDenomGrid();
   CAJA.arqueoAmount = 0;
   updateArqueoDiff();
-  $('#caja-turno-time').textContent = 'hoy 09:15';
   openSheet('caja');
+}
+function refreshCajaUI(){
+  const c = getCajaState();
+  // Header
+  const turnoEl = $('#caja-turno-time');
+  if(turnoEl) turnoEl.textContent = c.apertura ? `${new Date(c.apertura.time).toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})} · ${c.apertura.user || '—'}` : 'Sin abrir';
+  // Apertura tab
+  const fondoVEl = $('#caja-fondo-v');
+  if(fondoVEl) fondoVEl.textContent = fmt(c.fondo || 0);
+  const apEl = $('#caja-apertura-v');
+  if(apEl) apEl.textContent = c.apertura ? `${new Date(c.apertura.time).toTimeString().slice(0,5)} · ${c.apertura.user || '—'}` : '—';
+  const desglEl = $('#caja-fondo-desglose');
+  if(desglEl){
+    const entries = Object.entries(c.fondoDesglose || {}).filter(([_,v]) => v>0).sort((a,b)=>Number(b[0])-Number(a[0]));
+    desglEl.innerHTML = entries.length
+      ? entries.map(([d,q]) => `<div class="denom-row"><span class="denom-k">${q} × $${d}</span><span class="denom-v">${fmt(Number(d)*Number(q))}</span></div>`).join('')
+      : '<div class="denom-row"><span class="denom-k" style="color:var(--ink-500);">Sin desglose registrado</span></div>';
+  }
+  // Movimientos
+  const movsEl = $('#caja-movs-list');
+  if(movsEl){
+    const items = [];
+    if(c.apertura){
+      items.push(`<div class="mov-item"><div class="mov-ico" style="background:var(--success-soft);color:var(--success);">+</div><div class="mov-body"><div class="mov-name">Fondo inicial</div><div class="mov-meta">${new Date(c.apertura.time).toTimeString().slice(0,5)} · ${sanitize(c.apertura.user||'—')}</div></div><div class="mov-amt" style="color:var(--success);">+${fmt(c.fondo||0)}</div></div>`);
+    }
+    (c.movs || []).forEach(m => {
+      const isOut = m.type === 'retiro';
+      items.push(`<div class="mov-item"><div class="mov-ico" style="background:${isOut?'var(--danger-soft)':'var(--success-soft)'};color:${isOut?'var(--danger)':'var(--success)'};">${isOut?'−':'+'}</div><div class="mov-body"><div class="mov-name">${isOut?'Retiro':'Depósito'} · ${sanitize(m.reason||'sin nota')}</div><div class="mov-meta">${new Date(m.time).toTimeString().slice(0,5)} · ${sanitize(m.user||'—')}</div></div><div class="mov-amt" style="color:${isOut?'var(--danger)':'var(--success)'};">${isOut?'−':'+'}${fmt(m.amount)}</div></div>`);
+    });
+    movsEl.innerHTML = items.length ? items.join('') : '<div style="padding:var(--sp-4);text-align:center;color:var(--ink-500);font-size:13px;">Sin movimientos registrados</div>';
+  }
+  // Corte breakdown
+  const fondo = c.fondo || 0;
+  const ventasEfec = calcVentasEfectivoHoy();
+  const retiros = calcRetirosHoy();
+  const depositos = calcDepositosHoy();
+  const esperado = fondo + ventasEfec + depositos - retiros;
+  const espEl = $('#corte-esperado');
+  if(espEl) espEl.textContent = fmt(esperado);
+  const breakdownEl = $('#corte-breakdown-text');
+  if(breakdownEl) breakdownEl.textContent = `Fondo ${fmt(fondo)} + Ventas efectivo ${fmt(ventasEfec)}${depositos>0?' + Depósitos '+fmt(depositos):''}${retiros>0?' − Retiros '+fmt(retiros):''}`;
+}
+function openMovModal(type){
+  const isOut = type === 'retiro';
+  const title = isOut ? 'Registrar retiro' : 'Registrar depósito';
+  // Modal simple
+  let ov = document.getElementById('ov-mov');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ov-mov';
+  ov.className = 'overlay open';
+  ov.innerHTML = `
+    <div class="sheet open" style="max-width:420px;margin:auto;height:auto;max-height:80vh;border-radius:var(--r-lg);">
+      <div class="sheet-header"><div class="sheet-title-wrap"><div class="sheet-title">${title}</div></div><button class="sheet-back" onclick="document.getElementById('ov-mov').remove()">×</button></div>
+      <div class="sheet-body">
+        <div class="mod-label">Monto</div>
+        <input id="mov-amount" type="number" class="input" placeholder="$0" autofocus inputmode="numeric" style="font-size:24px;text-align:center;margin-top:8px;">
+        <div class="mod-label" style="margin-top:16px;">Concepto</div>
+        <input id="mov-reason" class="input" placeholder="${isOut?'Ej. Pago proveedor':'Ej. Cambio extra'}" style="margin-top:8px;">
+      </div>
+      <div style="padding:var(--sp-3);display:flex;gap:var(--sp-2);">
+        <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('ov-mov').remove()">Cancelar</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="saveMov('${type}')">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  setTimeout(() => document.getElementById('mov-amount')?.focus(), 100);
+}
+function saveMov(type){
+  const amount = parseInt(document.getElementById('mov-amount')?.value) || 0;
+  const reason = (document.getElementById('mov-reason')?.value || '').trim();
+  if(!amount || amount <= 0){ showToast('Monto inválido', 0, '⚠️'); return; }
+  const c = getCajaState();
+  if(!c.movs) c.movs = [];
+  c.movs.push({
+    id: 'm_' + Date.now(),
+    type, amount, reason,
+    time: new Date().toISOString(),
+    user: (typeof ROLE !== 'undefined' && ROLE.user) ? ROLE.user.alias : '—',
+  });
+  if(typeof window.persistAll === 'function') window.persistAll();
+  document.getElementById('ov-mov').remove();
+  refreshCajaUI();
+  showToast(`${type === 'retiro' ? 'Retiro' : 'Depósito'} registrado · ${fmt(amount)}`, 0, type==='retiro'?'➖':'➕');
+}
+
+function openAperturaModal(){
+  const c = getCajaState();
+  const currentFondo = c.fondo || 0;
+  let ov = document.getElementById('ov-apertura');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ov-apertura';
+  ov.className = 'overlay open';
+  ov.innerHTML = `
+    <div class="sheet open" style="max-width:420px;margin:auto;height:auto;max-height:80vh;border-radius:var(--r-lg);">
+      <div class="sheet-header"><div class="sheet-title-wrap"><div class="sheet-title">${c.apertura ? 'Editar fondo' : 'Abrir turno'}</div><div class="sheet-sub">Efectivo con el que arranca la caja</div></div><button class="sheet-back" onclick="document.getElementById('ov-apertura').remove()">×</button></div>
+      <div class="sheet-body">
+        <div class="mod-label">Monto del fondo inicial</div>
+        <input id="ap-fondo" type="number" class="input" value="${currentFondo}" placeholder="$0" autofocus inputmode="numeric" style="font-size:28px;text-align:center;margin-top:8px;">
+      </div>
+      <div style="padding:var(--sp-3);display:flex;gap:var(--sp-2);">
+        <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('ov-apertura').remove()">Cancelar</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="saveApertura()">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  setTimeout(() => document.getElementById('ap-fondo')?.focus(), 100);
+}
+function saveApertura(){
+  const fondo = parseInt(document.getElementById('ap-fondo')?.value) || 0;
+  if(fondo < 0){ showToast('Monto inválido', 0, '⚠️'); return; }
+  const c = getCajaState();
+  c.fondo = fondo;
+  if(!c.apertura){
+    c.apertura = {
+      time: new Date().toISOString(),
+      user: (typeof ROLE !== 'undefined' && ROLE.user) ? ROLE.user.alias : '—',
+    };
+  }
+  if(typeof window.persistAll === 'function') window.persistAll();
+  document.getElementById('ov-apertura').remove();
+  refreshCajaUI();
+  showToast(`Fondo configurado · ${fmt(fondo)}`, 0, '💼');
+}
+
+function openCaja_legacy(){
+  // mantener por si algo más la llama (compat)
+  openCaja();
 }
 function setCajaTab(name, btn){
   btn.parentElement.querySelectorAll('.caja-tab').forEach(b=>b.classList.remove('active'));
@@ -7412,20 +7427,25 @@ function updateDenomTotal(){
   updateArqueoDiff();
 }
 function updateArqueoDiff(){
-  const esperado = FONDO_MOCK + VENTAS_EFECTIVO_MOCK - RETIROS_MOCK;
+  const c = getCajaState();
+  const fondo = c.fondo || 0;
+  const ventasEfec = calcVentasEfectivoHoy();
+  const retiros = calcRetirosHoy();
+  const depositos = calcDepositosHoy();
+  const esperado = fondo + ventasEfec + depositos - retiros;
   const contado = CAJA.arqueoMode==='total'
     ? CAJA.arqueoAmount
     : DENOMS.reduce((s,d)=>s+(CAJA.denoms[d]||0)*d, 0);
   const diff = contado - esperado;
   const box = $('#corte-diff');
   const v = $('#corte-diff-v');
+  if(!box || !v) return;
   box.classList.remove('match','off');
   if(contado === 0){ v.textContent = '—'; return; }
   if(diff === 0){ box.classList.add('match'); v.textContent = '✓ Cuadra'; }
   else { box.classList.add('off'); v.textContent = (diff>0?'+':'') + fmt(diff); }
 }
 function cerrarCorte(){
-  const esperado = FONDO_MOCK + VENTAS_EFECTIVO_MOCK - RETIROS_MOCK;
   closeSheet('caja');
   setTimeout(()=>{ openCorte(); }, 300);
 }
@@ -7435,7 +7455,7 @@ let ADMIN = { pin:'', sec:'productos' };
 function openAdmin(){
   ADMIN.pin = '';
   updateAdminDots();
-  $('#admin-error').textContent = 'Tip: 9999 para demo';
+  $('#admin-error').textContent = 'PIN admin o gerente';
   $('#admin-gate').style.display = 'flex';
   $('#admin-app').style.display = 'none';
   $('#screen-pos').classList.remove('active');
@@ -7448,86 +7468,164 @@ function closeAdmin(){
 
 /* ─── DASHBOARD DEL DUEÑO ─── */
 let DASH = { period: 'hoy' };
-const DASH_DATA = {
-  hoy:    { ventas: 6820, tickets: 47, ticketProm: 145, clientes: 38, vsAyer: +12, ticketsVs: +8, promVs: +4, clientesVs: -3,
-            horas: [120,80,60,180,420,680,890,720,560,640,820,950],
-            top: [
-              { rank:1, emoji:'🍓', name:'Fresas con crema', qty:18, amt:1620 },
-              { rank:2, emoji:'🥤', name:'Frappé de fresa',   qty:14, amt:1260 },
-              { rank:3, emoji:'🍨', name:'Nieve artesanal',   qty:11, amt:715  },
-              { rank:4, emoji:'🍰', name:'Cheesecake fresa',  qty:8,  amt:840  },
-              { rank:5, emoji:'☕', name:'Café latte',         qty:6,  amt:330  }
-            ],
-            pagos: [
-              { name:'Efectivo', icon:'💵', cls:'efectivo', amt:2940, pct:43 },
-              { name:'Tarjeta',  icon:'💳', cls:'tarjeta',  amt:3210, pct:47 },
-              { name:'Transferencia', icon:'📱', cls:'transfer', amt:670, pct:10 }
-            ],
-            servicios: [
-              { name:'Mostrador', icon:'🏪', cls:'mostrador', amt:4380, pct:64 },
-              { name:'Para llevar', icon:'🥡', cls:'llevar', amt:1820, pct:27 },
-              { name:'Delivery',   icon:'🛵', cls:'delivery', amt:620,  pct:9  }
-            ],
-            staff: { initials:'KM', name:'Karla Mendoza', role:'Cajera · turno mañana', tickets:24, prom:148, propinas:184 },
-            ordenes: [
-              { n:'#0047', t:'2 min', total:285, met:'💳' },
-              { n:'#0046', t:'5 min', total:160, met:'💵' },
-              { n:'#0045', t:'8 min', total:420, met:'💳' },
-              { n:'#0044', t:'12 min',total:90,  met:'📱' }
-            ] },
-  semana: { ventas: 47280, tickets: 312, ticketProm: 152, clientes: 198, vsAyer:+18, ticketsVs:+15, promVs:+3, clientesVs:+22,
-            horas: [820,640,520,1180,2420,3680,4890,5720,4560,5640,5820,6950],
-            top: [
-              { rank:1, emoji:'🍓', name:'Fresas con crema', qty:124, amt:11160 },
-              { rank:2, emoji:'🥤', name:'Frappé de fresa',   qty:98,  amt:8820  },
-              { rank:3, emoji:'🍨', name:'Nieve artesanal',   qty:76,  amt:4940  },
-              { rank:4, emoji:'🍰', name:'Cheesecake fresa',  qty:54,  amt:5670  },
-              { rank:5, emoji:'☕', name:'Café latte',         qty:48,  amt:2640  }
-            ],
-            pagos: [
-              { name:'Efectivo', icon:'💵', cls:'efectivo', amt:18940, pct:40 },
-              { name:'Tarjeta',  icon:'💳', cls:'tarjeta',  amt:23420, pct:50 },
-              { name:'Transferencia', icon:'📱', cls:'transfer', amt:4920, pct:10 }
-            ],
-            servicios: [
-              { name:'Mostrador', icon:'🏪', cls:'mostrador', amt:30240, pct:64 },
-              { name:'Para llevar', icon:'🥡', cls:'llevar', amt:12890, pct:27 },
-              { name:'Delivery',   icon:'🛵', cls:'delivery', amt:4150,  pct:9  }
-            ],
-            staff: { initials:'KM', name:'Karla Mendoza', role:'Top vendedora de la semana', tickets:168, prom:152, propinas:1240 },
-            ordenes: [
-              { n:'#0312', t:'hoy',    total:285, met:'💳' },
-              { n:'#0298', t:'ayer',   total:540, met:'💵' },
-              { n:'#0274', t:'2 días', total:180, met:'💳' },
-              { n:'#0241', t:'3 días', total:380, met:'📱' }
-            ] },
-  mes:    { ventas: 184500, tickets: 1248, ticketProm: 148, clientes: 742, vsAyer:+24, ticketsVs:+20, promVs:+5, clientesVs:+34,
-            horas: [3200,2400,2100,4600,9800,14200,18900,22400,17800,22100,22800,27200],
-            top: [
-              { rank:1, emoji:'🍓', name:'Fresas con crema', qty:486, amt:43740 },
-              { rank:2, emoji:'🥤', name:'Frappé de fresa',   qty:392, amt:35280 },
-              { rank:3, emoji:'🍨', name:'Nieve artesanal',   qty:298, amt:19370 },
-              { rank:4, emoji:'🍰', name:'Cheesecake fresa',  qty:214, amt:22470 },
-              { rank:5, emoji:'☕', name:'Café latte',         qty:186, amt:10230 }
-            ],
-            pagos: [
-              { name:'Efectivo', icon:'💵', cls:'efectivo', amt:73800, pct:40 },
-              { name:'Tarjeta',  icon:'💳', cls:'tarjeta',  amt:92250, pct:50 },
-              { name:'Transferencia', icon:'📱', cls:'transfer', amt:18450, pct:10 }
-            ],
-            servicios: [
-              { name:'Mostrador', icon:'🏪', cls:'mostrador', amt:118080, pct:64 },
-              { name:'Para llevar', icon:'🥡', cls:'llevar', amt:49815, pct:27 },
-              { name:'Delivery',   icon:'🛵', cls:'delivery', amt:16605, pct:9  }
-            ],
-            staff: { initials:'KM', name:'Karla Mendoza', role:'Top vendedora del mes', tickets:684, prom:151, propinas:5240 },
-            ordenes: [
-              { n:'#1248', t:'hoy',    total:285, met:'💳' },
-              { n:'#1180', t:'3 días', total:740, met:'💵' },
-              { n:'#1098', t:'1 sem',  total:380, met:'💳' },
-              { n:'#0998', t:'2 sem',  total:520, met:'📱' }
-            ] }
-};
+
+// Calcula KPIs y datos del dashboard a partir de ORDERS_MOCK reales.
+// period: 'hoy' | 'semana' | 'mes'
+function computeDashData(period){
+  const empty = {
+    ventas: 0, tickets: 0, ticketProm: 0, clientes: 0,
+    vsAyer: 0, ticketsVs: 0, promVs: 0, clientesVs: 0,
+    horas: new Array(12).fill(0),
+    top: [],
+    pagos: [
+      { name:'Efectivo', icon:'💵', cls:'efectivo', amt:0, pct:0 },
+      { name:'Tarjeta',  icon:'💳', cls:'tarjeta',  amt:0, pct:0 },
+      { name:'Transferencia', icon:'📱', cls:'transfer', amt:0, pct:0 },
+    ],
+    servicios: [
+      { name:'Mostrador', icon:'🏪', cls:'mostrador', amt:0, pct:0 },
+      { name:'Para llevar', icon:'🥡', cls:'llevar', amt:0, pct:0 },
+      { name:'Delivery',   icon:'🛵', cls:'delivery', amt:0, pct:0 },
+    ],
+    staff: { initials:'—', name:'Sin datos', role:'—', tickets:0, prom:0, propinas:0 },
+    ordenes: [],
+  };
+
+  if(typeof ORDERS_MOCK === 'undefined' || !ORDERS_MOCK.length) return empty;
+
+  const now = new Date();
+  let startCurrent, startPrevious, endPrevious;
+  if(period === 'hoy'){
+    startCurrent = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    startPrevious = new Date(startCurrent); startPrevious.setDate(startPrevious.getDate()-1);
+    endPrevious = startCurrent;
+  } else if(period === 'semana'){
+    startCurrent = new Date(now); startCurrent.setDate(startCurrent.getDate()-7);
+    startPrevious = new Date(now); startPrevious.setDate(startPrevious.getDate()-14);
+    endPrevious = new Date(startCurrent);
+  } else { // mes
+    startCurrent = new Date(now); startCurrent.setDate(startCurrent.getDate()-30);
+    startPrevious = new Date(now); startPrevious.setDate(startPrevious.getDate()-60);
+    endPrevious = new Date(startCurrent);
+  }
+
+  const inRange = (o, from, to) => {
+    if(!o.created_at) return period === 'hoy'; // sin fecha asumimos hoy
+    const d = new Date(o.created_at);
+    return d >= from && (!to || d < to);
+  };
+
+  const currentOrders = ORDERS_MOCK.filter(o => o.status === 'completada' && inRange(o, startCurrent, null));
+  const previousOrders = ORDERS_MOCK.filter(o => o.status === 'completada' && inRange(o, startPrevious, endPrevious));
+
+  const totalCurrent = currentOrders.reduce((s,o) => s + (Number(o.total)||0), 0);
+  const totalPrevious = previousOrders.reduce((s,o) => s + (Number(o.total)||0), 0);
+  const tickets = currentOrders.length;
+  const ticketsPrev = previousOrders.length;
+  const ticketProm = tickets ? Math.round(totalCurrent / tickets) : 0;
+  const ticketPromPrev = ticketsPrev ? Math.round(totalPrevious / ticketsPrev) : 0;
+
+  // Clientes únicos
+  const uniqClients = new Set(currentOrders.map(o => o.client).filter(c => c)).size;
+  const uniqClientsPrev = new Set(previousOrders.map(o => o.client).filter(c => c)).size;
+
+  const pctChange = (cur, prev) => prev ? Math.round((cur - prev) * 100 / prev) : 0;
+
+  // Horas: de 11 a 22 (índice 0..11)
+  const horas = new Array(12).fill(0);
+  currentOrders.forEach(o => {
+    let hour;
+    if(o.created_at) hour = new Date(o.created_at).getHours();
+    else if(o.time) hour = parseInt(o.time.slice(0,2));
+    else return;
+    if(hour >= 11 && hour <= 22) horas[hour - 11] += Number(o.total) || 0;
+  });
+
+  // Top productos
+  const counts = {};
+  currentOrders.forEach(o => {
+    (o.items || []).forEach(it => {
+      const key = it.name;
+      if(!counts[key]) counts[key] = { name: it.name, qty: 0, amt: 0, emoji: it.emoji || '🍓' };
+      counts[key].qty += Number(it.qty) || 1;
+      counts[key].amt += (Number(it.price) || 0) * (Number(it.qty) || 1);
+    });
+  });
+  const top = Object.values(counts).sort((a,b) => b.qty - a.qty).slice(0,5).map((p,i) => ({
+    rank: i+1, emoji: p.emoji, name: p.name, qty: p.qty, amt: p.amt,
+  }));
+
+  // Métodos de pago
+  let efe = 0, tar = 0, trx = 0;
+  currentOrders.forEach(o => {
+    const t = Number(o.total) || 0;
+    if(o.pay === 'efectivo') efe += t;
+    else if(o.pay === 'tarjeta') tar += t;
+    else if(o.pay === 'transfer') trx += t;
+  });
+  const total = efe + tar + trx;
+  const pct = n => total ? Math.round(n * 100 / total) : 0;
+  const pagos = [
+    { name:'Efectivo', icon:'💵', cls:'efectivo', amt: efe, pct: pct(efe) },
+    { name:'Tarjeta',  icon:'💳', cls:'tarjeta',  amt: tar, pct: pct(tar) },
+    { name:'Transferencia', icon:'📱', cls:'transfer', amt: trx, pct: pct(trx) },
+  ];
+
+  // Servicios
+  let most = 0, llev = 0, deli = 0;
+  currentOrders.forEach(o => {
+    const t = Number(o.total) || 0;
+    if(o.svc === 'mostrador') most += t;
+    else if(o.svc === 'llevar') llev += t;
+    else if(o.svc === 'delivery') deli += t;
+  });
+  const totalSvc = most + llev + deli;
+  const pctS = n => totalSvc ? Math.round(n * 100 / totalSvc) : 0;
+  const servicios = [
+    { name:'Mostrador', icon:'🏪', cls:'mostrador', amt: most, pct: pctS(most) },
+    { name:'Para llevar', icon:'🥡', cls:'llevar', amt: llev, pct: pctS(llev) },
+    { name:'Delivery', icon:'🛵', cls:'delivery', amt: deli, pct: pctS(deli) },
+  ];
+
+  // Staff actual (usuario logueado)
+  const myPin = (typeof ROLE !== 'undefined' && ROLE.user) ? ROLE.user.pin : null;
+  const myOrders = myPin ? currentOrders.filter(o => o.cashier_pin === myPin) : currentOrders;
+  const myName = (typeof ROLE !== 'undefined' && ROLE.user) ? ROLE.user.alias : '—';
+  const myTotal = myOrders.reduce((s,o) => s + (Number(o.total)||0), 0);
+  const staff = {
+    initials: myName.split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase() || '—',
+    name: myName,
+    role: (typeof ROLE !== 'undefined' && ROLE.user) ? (ROLE.perms.label + ' · turno actual') : '—',
+    tickets: myOrders.length,
+    prom: myOrders.length ? Math.round(myTotal/myOrders.length) : 0,
+    propinas: 0, // no guardamos propinas aún
+  };
+
+  // Últimas órdenes (4 más recientes)
+  const minutesAgo = (d) => {
+    if(!d) return '—';
+    const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+    if(mins < 1) return 'ahora';
+    if(mins < 60) return mins + ' min';
+    if(mins < 1440) return Math.floor(mins/60) + ' h';
+    return Math.floor(mins/1440) + ' d';
+  };
+  const payIcon = { efectivo:'💵', tarjeta:'💳', transfer:'📱' };
+  const ordenes = currentOrders.slice(0,4).map(o => ({
+    n: '#'+o.n, t: o.created_at ? minutesAgo(o.created_at) : (o.time || '—'),
+    total: Number(o.total) || 0, met: payIcon[o.pay] || '💵',
+  }));
+
+  return {
+    ventas: totalCurrent,
+    tickets, ticketProm, clientes: uniqClients,
+    vsAyer: pctChange(totalCurrent, totalPrevious),
+    ticketsVs: pctChange(tickets, ticketsPrev),
+    promVs: pctChange(ticketProm, ticketPromPrev),
+    clientesVs: pctChange(uniqClients, uniqClientsPrev),
+    horas, top, pagos, servicios, staff, ordenes,
+  };
+}
 function openDashboard(){
   $('#screen-pos').classList.remove('active');
   $('#screen-dashboard').classList.add('active');
@@ -7549,7 +7647,7 @@ function setDashPeriod(p, btn){
   renderDash();
 }
 function renderDash(){
-  const d = DASH_DATA[DASH.period] || DASH_DATA.hoy;
+  const d = computeDashData(DASH.period);
   const periodLabel = DASH.period==='hoy' ? 'Hoy' : DASH.period==='semana' ? 'Últimos 7 días' : 'Últimos 30 días';
   setTxt('#dash-now', periodLabel);
 
@@ -7580,13 +7678,38 @@ function renderDash(){
       </div>`;
   }
 
-  // Alerts
+  // Alerts (calculadas desde datos reales)
   const alerts = $('#dash-alerts');
   if(alerts){
-    alerts.innerHTML = `
-      <div class="dash-alert warn"><span>⚠️</span> Bajo stock: <b>Fresas premium</b> (3 kg) <span class="dash-alert-arrow">→</span></div>
-      <div class="dash-alert success"><span>🎉</span> <b>3 clientes</b> tienen premio listo en el club <span class="dash-alert-arrow">→</span></div>
-      <div class="dash-alert"><span>📈</span> Vas <b>${d.vsAyer>0?'+':''}${d.vsAyer}%</b> vs misma hora ayer <span class="dash-alert-arrow">→</span></div>`;
+    const alertList = [];
+
+    // Bajo stock (inventario)
+    if(typeof INV_MOCK !== 'undefined' && typeof statusOf === 'function'){
+      const lowStock = INV_MOCK.filter(i => statusOf(i) !== 'ok');
+      if(lowStock.length){
+        const worst = lowStock.sort((a,b) => (a.qty/a.min) - (b.qty/b.min))[0];
+        const sev = statusOf(worst) === 'critico' ? 'danger' : 'warn';
+        alertList.push(`<div class="dash-alert ${sev}" onclick="menuAction('inventario')"><span>⚠️</span> Bajo stock: <b>${sanitize(worst.name)}</b> (${worst.qty} ${worst.unit}) · ${lowStock.length} item${lowStock.length>1?'s':''} <span class="dash-alert-arrow">→</span></div>`);
+      }
+    }
+
+    // Clientes con premio listo en el club
+    if(typeof CLIENTES_MOCK !== 'undefined'){
+      const conPremio = CLIENTES_MOCK.filter(c => c.pts >= (c.next || 500));
+      if(conPremio.length){
+        alertList.push(`<div class="dash-alert success" onclick="menuAction('clientes')"><span>🎉</span> <b>${conPremio.length} cliente${conPremio.length>1?'s':''}</b> tienen premio listo en el club <span class="dash-alert-arrow">→</span></div>`);
+      }
+    }
+
+    // Tendencia vs período anterior
+    if(d.vsAyer !== 0){
+      const sign = d.vsAyer > 0 ? '+' : '';
+      const vsLabel = DASH.period==='hoy' ? 'mismo día ayer' : 'periodo previo';
+      alertList.push(`<div class="dash-alert"><span>📈</span> Vas <b>${sign}${d.vsAyer}%</b> vs ${vsLabel} <span class="dash-alert-arrow">→</span></div>`);
+    }
+
+    alerts.innerHTML = alertList.length ? alertList.join('') :
+      `<div class="dash-alert success"><span>✓</span> Sin alertas activas</div>`;
   }
 
   // Hours bar chart
@@ -7725,12 +7848,14 @@ function adminPinDel(){ ADMIN.pin=ADMIN.pin.slice(0,-1); updateAdminDots(); }
 function updateAdminDots(){ for(let i=0;i<4;i++) $('#apd'+i).classList.toggle('filled', i<ADMIN.pin.length); }
 function adminPinEnter(){
   if(ADMIN.pin.length<4) return;
-  if(ADMIN.pin==='9999' || ADMIN.pin==='0000'){
+  // Verificar contra USUARIOS reales con rol admin o gerente
+  const user = USUARIOS.find(u => u.pin === ADMIN.pin && (u.rol === 'admin' || u.rol === 'gerente'));
+  if(user){
     $('#admin-gate').style.display = 'none';
     $('#admin-app').style.display = 'flex';
     setAdminSec('productos', document.querySelector('.admin-nav-item'));
   } else {
-    $('#admin-error').textContent = 'PIN incorrecto';
+    $('#admin-error').textContent = 'PIN incorrecto · requiere acceso admin/gerente';
     ADMIN.pin=''; updateAdminDots(); vibrate([50,30,50]);
   }
 }
@@ -7843,27 +7968,97 @@ function renderAdminSection(sec){
       </div>`;
   }
   if(sec==='turnos'){
-    return `<div class="adm-h">Turnos</div><div class="adm-sub">Historial últimos 7 días</div>
+    // Calcular turnos desde ORDERS_MOCK de los últimos 7 días, agrupados por (cashier_pin, día)
+    const now = new Date();
+    const startWeek = new Date(now); startWeek.setDate(startWeek.getDate()-7);
+    const recent = (typeof ORDERS_MOCK !== 'undefined' ? ORDERS_MOCK : []).filter(o => {
+      if(o.status !== 'completada') return false;
+      if(!o.created_at) return false;
+      return new Date(o.created_at) >= startWeek;
+    });
+    // Agrupar por (pin + fecha)
+    const shifts = {};
+    recent.forEach(o => {
+      const pin = o.cashier_pin || 'unknown';
+      const date = String(o.created_at).slice(0,10); // YYYY-MM-DD
+      const key = pin + '|' + date;
+      if(!shifts[key]){
+        const user = USUARIOS.find(u => u.pin === pin) || { nombre: 'Cajero', alias: 'Cajero', rol: 'cajero', emoji: '🍓' };
+        shifts[key] = {
+          pin, date, user,
+          firstTime: o.created_at, lastTime: o.created_at,
+          orders: 0, total: 0,
+        };
+      }
+      const s = shifts[key];
+      s.orders++;
+      s.total += Number(o.total) || 0;
+      if(o.created_at < s.firstTime) s.firstTime = o.created_at;
+      if(o.created_at > s.lastTime) s.lastTime = o.created_at;
+    });
+    const shiftList = Object.values(shifts).sort((a,b) => b.lastTime.localeCompare(a.lastTime));
+
+    // KPIs
+    const totalShifts = shiftList.length;
+    const totalHours = shiftList.reduce((s,sh) => {
+      const ms = new Date(sh.lastTime) - new Date(sh.firstTime);
+      return s + Math.max(0.5, ms / 3600000); // mínimo 30min
+    }, 0);
+    const avgHours = totalShifts ? totalHours / totalShifts : 0;
+    const totalSalesAllShifts = shiftList.reduce((s,sh) => s + sh.total, 0);
+    const salesPerHour = totalHours ? Math.round(totalSalesAllShifts / totalHours) : 0;
+
+    // Date helpers
+    const isToday = (d) => String(d).slice(0,10) === now.toISOString().slice(0,10);
+    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
+    const isYesterday = (d) => String(d).slice(0,10) === yesterday.toISOString().slice(0,10);
+    const fmtShiftDate = (d) => {
+      if(isToday(d)) return 'Hoy ' + new Date(d).toTimeString().slice(0,5);
+      if(isYesterday(d)) return 'Ayer ' + new Date(d).toTimeString().slice(0,5);
+      const daysAgo = Math.floor((now - new Date(d)) / 86400000);
+      return 'Hace ' + daysAgo + ' días';
+    };
+    const fmtHours = (ms) => {
+      const hrs = Math.floor(ms/3600000);
+      const mins = Math.floor((ms%3600000)/60000);
+      return hrs + 'h' + (mins>0?' '+mins+'m':'');
+    };
+
+    const rows = shiftList.length ? shiftList.map(sh => {
+      const ms = new Date(sh.lastTime) - new Date(sh.firstTime);
+      const stillActive = isToday(sh.lastTime) && sh.pin === (ROLE.user?.pin);
+      return `<div class="adm-tr" onclick="showToast('Turno de ${sanitize(sh.user.alias)} · ${sh.orders} órdenes · $${sh.total.toLocaleString()}', 0, '⏱')">
+        <div class="adm-tr-emoji">${sh.user.emoji}</div>
+        <div><div class="adm-tr-name">${sanitize(sh.user.nombre)}</div><div class="adm-tr-meta">${sh.user.rol}</div></div>
+        <div class="adm-tr-cat">${fmtShiftDate(sh.firstTime)}</div>
+        <div class="adm-tr-cat">${stillActive ? `<span class="pill pill-success">● Activo · ${fmtHours(ms)}</span>` : fmtHours(ms)}</div>
+        <div class="adm-tr-price">$${sh.total.toLocaleString()}</div>
+        <div class="adm-edit">›</div>
+      </div>`;
+    }).join('') : '<div class="adm-tr"><div></div><div style="grid-column:span 5;text-align:center;padding:24px;color:var(--ink-500);">Sin turnos registrados en los últimos 7 días</div></div>';
+
+    return `<div class="adm-h">Turnos</div><div class="adm-sub">Historial últimos 7 días · calculado desde las ventas</div>
       <div class="adm-kpi-row">
-        <div class="adm-stat"><div class="adm-stat-k">Turnos esta semana</div><div class="adm-stat-v">12</div></div>
-        <div class="adm-stat"><div class="adm-stat-k">Horas totales</div><div class="adm-stat-v">96h</div></div>
-        <div class="adm-stat"><div class="adm-stat-k">Promedio/turno</div><div class="adm-stat-v">8h</div></div>
-        <div class="adm-stat"><div class="adm-stat-k">Ventas/h prom.</div><div class="adm-stat-v">$540</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Turnos esta semana</div><div class="adm-stat-v">${totalShifts}</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Horas totales</div><div class="adm-stat-v">${Math.round(totalHours)}h</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Promedio/turno</div><div class="adm-stat-v">${avgHours.toFixed(1)}h</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Ventas/h prom.</div><div class="adm-stat-v">$${salesPerHour.toLocaleString()}</div></div>
       </div>
       <div class="adm-table">
         <div class="adm-tr head"><div></div><div>Usuario</div><div>Fecha</div><div>Horas</div><div>Ventas</div><div></div></div>
-        <div class="adm-tr" onclick="showToast('Detalle de turno · Ana', 0, '⏱')"><div class="adm-tr-emoji">🍓</div><div><div class="adm-tr-name">Ana Torres</div><div class="adm-tr-meta">Cajera</div></div><div class="adm-tr-cat">Hoy 09:15</div><div class="adm-tr-cat"><span class="pill pill-success">● Activo · 8h 12m</span></div><div class="adm-tr-price">$4,030</div><div class="adm-edit">›</div></div>
-        <div class="adm-tr" onclick="showToast('Detalle de turno · Carlos', 0, '⏱')"><div class="adm-tr-emoji">🧑‍🍳</div><div><div class="adm-tr-name">Carlos Méndez</div><div class="adm-tr-meta">Cajero</div></div><div class="adm-tr-cat">Ayer 17:00</div><div class="adm-tr-cat">6h</div><div class="adm-tr-price">$3,480</div><div class="adm-edit">›</div></div>
-        <div class="adm-tr" onclick="showToast('Detalle de turno · Ana', 0, '⏱')"><div class="adm-tr-emoji">🍓</div><div><div class="adm-tr-name">Ana Torres</div><div class="adm-tr-meta">Cajera</div></div><div class="adm-tr-cat">Ayer 09:00</div><div class="adm-tr-cat">8h</div><div class="adm-tr-price">$5,120</div><div class="adm-edit">›</div></div>
-        <div class="adm-tr" onclick="showToast('Detalle de turno · Mariana', 0, '⏱')"><div class="adm-tr-emoji">👩‍💼</div><div><div class="adm-tr-name">Mariana</div><div class="adm-tr-meta">Gerente</div></div><div class="adm-tr-cat">Hace 2 días</div><div class="adm-tr-cat">10h</div><div class="adm-tr-price">$6,840</div><div class="adm-edit">›</div></div>
+        ${rows}
       </div>`;
   }
   if(sec==='sucursales'){
-    const totalToday = BRANCHES.reduce((s,b)=>s+b.today, 0);
-    const totalOrders = BRANCHES.reduce((s,b)=>s+b.ordenesHoy, 0);
-    const totalSemana = BRANCHES.reduce((s,b)=>s+b.semana, 0);
-    const max = Math.max(...BRANCHES.map(b=>b.today));
-    const cards = BRANCHES.map(b => `
+    // Calcular KPIs por sucursal desde ORDERS_MOCK
+    const branchKPIs = computeBranchKPIs();
+    const totalToday = Object.values(branchKPIs).reduce((s,b)=>s+b.today, 0);
+    const totalOrders = Object.values(branchKPIs).reduce((s,b)=>s+b.ordenesHoy, 0);
+    const totalSemana = Object.values(branchKPIs).reduce((s,b)=>s+b.semana, 0);
+    const maxToday = Math.max(1, ...Object.values(branchKPIs).map(b=>b.today));
+    const cards = BRANCHES.map(b => {
+      const k = branchKPIs[b.id] || { today:0, ordenesHoy:0, ticket:0, vsAyer:0, semana:0, clubActivos:0, top:[] };
+      return `
       <div class="suc-card ${b.principal?'principal':''}" onclick="switchBranch('${b.id}')">
         <div class="suc-card-head">
           <div class="suc-card-emoji bp-emoji ${b.class}" style="width:48px;height:48px;">${b.emoji}</div>
@@ -7878,30 +8073,34 @@ function renderAdminSection(sec){
           </div>
         </div>
         <div class="suc-card-stats">
-          <div><div class="suc-stat-k">Ventas hoy</div><div class="suc-stat-v">$${b.today.toLocaleString()}</div><div class="suc-stat-delta ${b.vsAyer>=0?'up':'dn'}">${b.vsAyer>=0?'▲':'▼'} ${Math.abs(b.vsAyer)}% vs ayer</div></div>
-          <div><div class="suc-stat-k">Órdenes</div><div class="suc-stat-v">${b.ordenesHoy}</div><div class="suc-stat-delta">Ticket $${b.ticket}</div></div>
-          <div><div class="suc-stat-k">Semana</div><div class="suc-stat-v" style="font-size:18px;">$${b.semana.toLocaleString()}</div></div>
-          <div><div class="suc-stat-k">Club activos</div><div class="suc-stat-v" style="font-size:18px;">${b.clubActivos}</div></div>
+          <div><div class="suc-stat-k">Ventas hoy</div><div class="suc-stat-v">$${k.today.toLocaleString()}</div>${k.vsAyer!==0?`<div class="suc-stat-delta ${k.vsAyer>=0?'up':'dn'}">${k.vsAyer>=0?'▲':'▼'} ${Math.abs(k.vsAyer)}% vs ayer</div>`:'<div class="suc-stat-delta">—</div>'}</div>
+          <div><div class="suc-stat-k">Órdenes</div><div class="suc-stat-v">${k.ordenesHoy}</div><div class="suc-stat-delta">Ticket $${k.ticket}</div></div>
+          <div><div class="suc-stat-k">Semana</div><div class="suc-stat-v" style="font-size:18px;">$${k.semana.toLocaleString()}</div></div>
+          <div><div class="suc-stat-k">Club activos</div><div class="suc-stat-v" style="font-size:18px;">${k.clubActivos}</div></div>
         </div>
         <div class="suc-card-foot">
           <button class="btn btn-secondary" style="flex:1;font-size:12px;" onclick="event.stopPropagation();showToast('Editando ' + '${b.name}', 0, '✏️')">Editar</button>
           <button class="btn btn-secondary" style="flex:1;font-size:12px;" onclick="event.stopPropagation();showToast('Reporte ' + '${b.name}', 0, '📊')">Ver reporte</button>
         </div>
       </div>
-    `).join('');
-    const bars = BRANCHES.map((b,i) => `
+    `;}).join('');
+    const bars = BRANCHES.map((b,i) => {
+      const k = branchKPIs[b.id] || { today:0, ordenesHoy:0 };
+      return `
       <div class="suc-bar-row">
         <div class="suc-bar-name">${b.emoji} ${b.name}</div>
-        <div class="suc-bar-track"><div class="suc-bar-fill ${i===1?'':i===2?'alt':'alt2'}" style="width:${(b.today/max*100)}%;">$${b.today.toLocaleString()}</div></div>
-        <div class="suc-bar-amt">${b.ordenesHoy} órd.</div>
+        <div class="suc-bar-track"><div class="suc-bar-fill ${i===1?'':i===2?'alt':'alt2'}" style="width:${(k.today/maxToday*100)}%;">$${k.today.toLocaleString()}</div></div>
+        <div class="suc-bar-amt">${k.ordenesHoy} órd.</div>
       </div>
-    `).join('');
-    const topGrid = BRANCHES.map(b => `
+    `;}).join('');
+    const topGrid = BRANCHES.map(b => {
+      const k = branchKPIs[b.id] || { top: [] };
+      return `
       <div class="suc-top-card">
         <div class="suc-top-h">${b.emoji} ${b.name} · top hoy</div>
-        ${b.top.map((p,i)=>`<div class="suc-top-row"><div class="suc-top-rk">${i+1}</div><div class="suc-top-name">${p.n}</div><div class="suc-top-qty">${p.q}u</div></div>`).join('')}
+        ${k.top.length ? k.top.map((p,i)=>`<div class="suc-top-row"><div class="suc-top-rk">${i+1}</div><div class="suc-top-name">${p.n}</div><div class="suc-top-qty">${p.q}u</div></div>`).join('') : '<div style="font-size:11px;color:var(--ink-500);padding:8px 0;">Sin ventas hoy</div>'}
       </div>
-    `).join('');
+    `;}).join('');
     return `
       <div class="adm-h">Sucursales</div>
       <div class="adm-sub">${BRANCHES.length} sucursales activas · $${totalToday.toLocaleString()} en ventas hoy · ${totalOrders} órdenes</div>
@@ -7928,30 +8127,61 @@ function renderAdminSection(sec){
       <div class="adm-cards">
         <div class="adm-card" onclick="openTaxEditor('iva')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;align-items:start;"><div><div class="adm-card-title">📊 IVA</div><div class="adm-card-desc">Incluido en el precio · <strong>16%</strong></div></div><div class="adm-edit">✎</div></div></div>
         <div class="adm-card" onclick="openTaxEditor('propina')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;align-items:start;"><div><div class="adm-card-title">💰 Propina sugerida</div><div class="adm-card-desc">Opciones: 10% · 15% · 20%</div></div><div class="adm-edit">✎</div></div></div>
-        <div class="adm-card" onclick="openTaxEditor('rfc')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;align-items:start;"><div><div class="adm-card-title">📋 RFC emisor</div><div class="adm-card-desc">LFR250101AB1 · Régimen general</div></div><div class="adm-edit">✎</div></div></div>
+        <div class="adm-card" onclick="openTaxEditor('rfc')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;align-items:start;"><div><div class="adm-card-title">📋 RFC emisor</div><div class="adm-card-desc">${AJ.rfc || 'Sin RFC'} · ${AJ.regimen || 'Régimen general'}</div></div><div class="adm-edit">✎</div></div></div>
         <div class="adm-card" onclick="openTaxEditor('moneda')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;align-items:start;"><div><div class="adm-card-title">💱 Moneda</div><div class="adm-card-desc">MXN · Peso mexicano</div></div><div class="adm-edit">✎</div></div></div>
       </div>`;
   }
   if(sec==='reportes'){
-    return `<div class="adm-h">Reportes</div><div class="adm-sub">Hoy · Sucursal Centro</div>
+    // Calcular desde ORDERS_MOCK
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayOrders = (typeof ORDERS_MOCK !== 'undefined' ? ORDERS_MOCK : []).filter(o => {
+      if(o.status !== 'completada') return false;
+      if(!o.created_at) return true;
+      return new Date(o.created_at) >= startToday;
+    });
+    const totalVentas = todayOrders.reduce((s,o) => s + (Number(o.total)||0), 0);
+    const ticketProm = todayOrders.length ? Math.round(totalVentas / todayOrders.length) : 0;
+    // Top productos
+    const counts = {};
+    todayOrders.forEach(o => (o.items || []).forEach(it => {
+      counts[it.name] = (counts[it.name] || 0) + (Number(it.qty) || 1);
+    }));
+    const topProds = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0,5);
+    const sucursalName = (typeof getBranch === 'function' ? getBranch().name : '');
+
+    return `<div class="adm-h">Reportes</div><div class="adm-sub">Hoy · ${sanitize(sucursalName)}</div>
       <div class="adm-kpi-row">
-        <div class="adm-stat"><div class="adm-stat-k">Ventas hoy</div><div class="adm-stat-v">$6,820</div></div>
-        <div class="adm-stat"><div class="adm-stat-k">Órdenes</div><div class="adm-stat-v">47</div></div>
-        <div class="adm-stat"><div class="adm-stat-k">Ticket promedio</div><div class="adm-stat-v">$145</div></div>
-        <div class="adm-stat"><div class="adm-stat-k">Propinas</div><div class="adm-stat-v">$420</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Ventas hoy</div><div class="adm-stat-v">$${totalVentas.toLocaleString()}</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Órdenes</div><div class="adm-stat-v">${todayOrders.length}</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Ticket promedio</div><div class="adm-stat-v">$${ticketProm}</div></div>
+        <div class="adm-stat"><div class="adm-stat-k">Cancelaciones</div><div class="adm-stat-v">${(ORDERS_MOCK||[]).filter(o => o.status!=='completada' && (!o.created_at || new Date(o.created_at)>=startToday)).length}</div></div>
       </div>
-      <div class="adm-card"><div class="adm-card-title">Productos más vendidos</div>
-        ${['Fresas','La Cookie Lover','La Pistachona','Lady Lotus','Agua Mineral'].map((n,i)=>`<div style="display:flex;justify-content:space-between;padding:var(--sp-2) 0;border-bottom:1px solid var(--border);"><span>${i+1}. ${n}</span><span style="font-weight:700;font-feature-settings:'tnum' 1;">${[18,12,9,7,15][i]} uds</span></div>`).join('')}
+      <div class="adm-card"><div class="adm-card-title">Productos más vendidos hoy</div>
+        ${topProds.length ? topProds.map(([n,q],i) => `<div style="display:flex;justify-content:space-between;padding:var(--sp-2) 0;border-bottom:1px solid var(--border);"><span>${i+1}. ${sanitize(n)}</span><span style="font-weight:700;font-feature-settings:'tnum' 1;">${q} uds</span></div>`).join('') : '<div style="padding:var(--sp-4) 0;color:var(--ink-500);text-align:center;">Sin ventas registradas hoy</div>'}
       </div>`;
   }
   if(sec==='integra'){
+    // Status real desde AJ.integrations (se llena al configurar cada una)
+    const ints = (AJ.integrations || {});
+    const pill = (key, defaultLabel) => {
+      const cfg = ints[key];
+      if(cfg && cfg.connected) return '<span class="pill pill-success">Conectada</span>';
+      if(cfg && cfg.configured) return '<span class="pill pill-warning">Configurar</span>';
+      return '<span class="pill pill-neutral">Desconectado</span>';
+    };
+    const desc = (key, defaultDesc) => {
+      const cfg = ints[key];
+      if(cfg && cfg.summary) return cfg.summary;
+      return defaultDesc;
+    };
     return `<div class="adm-h">Integraciones</div><div class="adm-sub">Conecta Lady Fresa con otros servicios</div>
       <div class="adm-cards">
-        <div class="adm-card" onclick="openIntegration('epson')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">🖨️ EPSON TM-m30II</div><span class="pill pill-success">Conectada</span></div><div class="adm-card-desc">Impresora ticket · Wi-Fi 192.168.1.42</div></div>
-        <div class="adm-card" onclick="openIntegration('clip')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">💳 Clip Pro</div><span class="pill pill-success">Emparejada</span></div><div class="adm-card-desc">Terminal bancaria · Bluetooth</div></div>
-        <div class="adm-card" onclick="openIntegration('whatsapp')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">📲 WhatsApp Business</div><span class="pill pill-success">Activa</span></div><div class="adm-card-desc">Envío de tickets · 55 1234 5678</div></div>
-        <div class="adm-card" onclick="openIntegration('sat')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">📧 Facturación SAT</div><span class="pill pill-warning">Configurar</span></div><div class="adm-card-desc">Facturación electrónica · CFDI 4.0</div></div>
-        <div class="adm-card" onclick="openIntegration('rappi')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">🛵 Rappi / Didi Food</div><span class="pill pill-neutral">Desconectado</span></div><div class="adm-card-desc">Delivery partners · OAuth</div></div>
+        <div class="adm-card" onclick="openIntegration('epson')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">🖨️ Impresora térmica</div>${pill('epson')}</div><div class="adm-card-desc">${desc('epson','Impresora ticket · sin configurar')}</div></div>
+        <div class="adm-card" onclick="openIntegration('clip')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">💳 Terminal de pago</div>${pill('clip')}</div><div class="adm-card-desc">${desc('clip','Clip, SumUp u otra · sin configurar')}</div></div>
+        <div class="adm-card" onclick="openIntegration('whatsapp')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">📲 WhatsApp Business</div>${pill('whatsapp')}</div><div class="adm-card-desc">${desc('whatsapp','Envío de tickets · sin configurar')}</div></div>
+        <div class="adm-card" onclick="openIntegration('sat')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">📧 Facturación SAT</div>${pill('sat')}</div><div class="adm-card-desc">${desc('sat','Facturación electrónica · CFDI 4.0')}</div></div>
+        <div class="adm-card" onclick="openIntegration('rappi')" style="cursor:pointer;"><div style="display:flex;justify-content:space-between;"><div class="adm-card-title">🛵 Delivery partners</div>${pill('rappi')}</div><div class="adm-card-desc">${desc('rappi','Rappi, Didi Food, Uber Eats')}</div></div>
       </div>`;
   }
   return '';
@@ -7959,22 +8189,12 @@ function renderAdminSection(sec){
 
 /* ─── HISTORIAL ─── */
 let HIST = { day:'hoy', status:'all', selected:null };
-const ORDERS_MOCK = [
-  {n:'047', time:'17:42', items:[{name:'La Pistachona',emoji:'🟢',qty:1,price:189,mods:['Grande +$50','Pistache +$25']},{name:'Agua Mineral',emoji:'💧',qty:1,price:50,mods:[]}], client:'Regina', svc:'mostrador', pay:'tarjeta', total:239, status:'completada'},
-  {n:'046', time:'17:28', items:[{name:'Fresas',emoji:'🍓',qty:2,price:99,mods:['Mediano +$36','Crema','Oreo','Coco']}], client:'', svc:'llevar', pay:'efectivo', total:270, status:'completada'},
-  {n:'045', time:'17:14', items:[{name:'La Cookie Lover',emoji:'🍪',qty:1,price:159,mods:['Lotus +$25']},{name:'Cafe de Olla',emoji:'☕',qty:1,price:45,mods:[]}], client:'Dani', svc:'delivery', pay:'transfer', total:229, status:'completada'},
-  {n:'044', time:'16:58', items:[{name:'Lady Lotus',emoji:'🌸',qty:1,price:159,mods:[]}], client:'', svc:'mostrador', pay:'tarjeta', total:159, status:'reembolsada', refund:{reason:'Error en preparación', time:'17:02'}},
-  {n:'043', time:'16:47', items:[{name:'La Mas Mexa',emoji:'🌶️',qty:2,price:149,mods:['Mazapán']},{name:'Agua Natural',emoji:'🫗',qty:2,price:50,mods:[]}], client:'Sofía', svc:'mostrador', pay:'efectivo', total:398, status:'completada'},
-  {n:'042', time:'16:31', items:[{name:'La Presumida',emoji:'🌰',qty:1,price:159,mods:['Ferrero +$25']}], client:'', svc:'llevar', pay:'efectivo', total:184, status:'completada'},
-  {n:'041', time:'16:12', items:[{name:'Combinado',emoji:'🥭',qty:3,price:109,mods:['Chico','Chococrema +$15']}], client:'Fiesta oficina', svc:'delivery', pay:'transfer', total:372, status:'completada'},
-  {n:'040', time:'15:54', items:[{name:'Fresas',emoji:'🍓',qty:1,price:99,mods:['Grande +$50','Caramelo +$30','KitKat +$25']}], client:'', svc:'mostrador', pay:'tarjeta', total:204, status:'completada'},
-  {n:'039', time:'15:38', items:[{name:'La Mil Leches',emoji:'🥛',qty:1,price:169,mods:['Nutella +$25']},{name:'Cafe de Olla',emoji:'☕',qty:2,price:45,mods:[]}], client:'Luis', svc:'mostrador', pay:'efectivo', total:284, status:'cancelada'},
-  {n:'038', time:'15:21', items:[{name:'La Caramelita',emoji:'🍮',qty:1,price:149,mods:[]}], client:'', svc:'llevar', pay:'efectivo', total:149, status:'completada'},
-  {n:'037', time:'15:04', items:[{name:'Platanos',emoji:'🍌',qty:1,price:99,mods:['Mediano +$36','Chocolate +$25','Almendra','M&Ms']}], client:'Marta', svc:'mostrador', pay:'tarjeta', total:160, status:'completada'},
-  {n:'036', time:'14:47', items:[{name:'Fresas',emoji:'🍓',qty:2,price:99,mods:['Chico','Crema','Lechera']},{name:'Platanos',emoji:'🍌',qty:1,price:99,mods:['Chico']}], client:'', svc:'mostrador', pay:'efectivo', total:297, status:'completada'},
-];
+// ORDERS_MOCK se llena desde Supabase al cargar (loadFromSupabase). Sin conexión queda vacío.
+const ORDERS_MOCK = [];
 function openHistorial(){
   HIST.selected = null;
+  HIST.day = HIST.day || 'hoy';
+  refreshHistDayLabel();
   renderHistList();
   $('#hist-detail').innerHTML = '<div class="hd-empty"><div style="font-size:48px;opacity:0.4;">🧾</div><p style="margin-top:12px;color:var(--ink-500);font-size:var(--fs-body);">Selecciona una orden para ver el detalle</p></div>';
   $('#screen-pos').classList.remove('active');
@@ -7986,11 +8206,44 @@ function closeHistorial(){
 }
 function setHistDay(d, btn){
   HIST.day = d;
-  btn.parentElement.querySelectorAll('.hist-chip:not(.hf)').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  const labels = {hoy:'Hoy · 47 órdenes · $6,820', ayer:'Ayer · 52 órdenes · $7,340', semana:'Esta semana · 287 órdenes · $41,820', rango:'Rango personalizado'};
-  $('#hist-day-label').textContent = labels[d];
+  if(btn){ btn.parentElement.querySelectorAll('.hist-chip:not(.hf)').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+  refreshHistDayLabel();
   renderHistList();
+}
+function refreshHistDayLabel(){
+  // Calcular label desde ORDERS_MOCK filtrado
+  const filtered = filterOrdersByDay(HIST.day);
+  const total = filtered.filter(o => o.status === 'completada').reduce((s,o) => s + (Number(o.total)||0), 0);
+  const periodName = { hoy:'Hoy', ayer:'Ayer', semana:'Esta semana', rango:'Rango' }[HIST.day] || 'Hoy';
+  const el = $('#hist-day-label');
+  if(el) el.textContent = `${periodName} · ${filtered.length} órdenes · $${total.toLocaleString()}`;
+}
+function filterOrdersByDay(day){
+  if(typeof ORDERS_MOCK === 'undefined') return [];
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if(day === 'hoy'){
+    return ORDERS_MOCK.filter(o => {
+      if(!o.created_at) return true; // sin fecha asumimos hoy
+      return new Date(o.created_at) >= startToday;
+    });
+  }
+  if(day === 'ayer'){
+    const startYesterday = new Date(startToday); startYesterday.setDate(startYesterday.getDate()-1);
+    return ORDERS_MOCK.filter(o => {
+      if(!o.created_at) return false;
+      const d = new Date(o.created_at);
+      return d >= startYesterday && d < startToday;
+    });
+  }
+  if(day === 'semana'){
+    const startWeek = new Date(now); startWeek.setDate(startWeek.getDate()-7);
+    return ORDERS_MOCK.filter(o => {
+      if(!o.created_at) return true;
+      return new Date(o.created_at) >= startWeek;
+    });
+  }
+  return ORDERS_MOCK; // rango = todo de momento
 }
 function setHistStatus(s, btn){
   HIST.status = s;
@@ -8002,7 +8255,8 @@ function renderHistList(){
   const q = ($('#hist-search')?.value || '').toLowerCase();
   const payF = $('#hist-pay-filter')?.value || 'all';
   const svcF = $('#hist-svc-filter')?.value || 'all';
-  const filtered = ORDERS_MOCK.filter(o => {
+  const dayFiltered = filterOrdersByDay(HIST.day || 'hoy');
+  const filtered = dayFiltered.filter(o => {
     if(HIST.status !== 'all' && o.status !== HIST.status) return false;
     if(payF !== 'all' && o.pay !== payF) return false;
     if(svcF !== 'all' && o.svc !== svcF) return false;
@@ -8104,18 +8358,8 @@ function selectHistOrder(n, btn){
 
 /* ─── CLIENTES ─── */
 let CLI = { filter:'todos', selected:null };
-const CLIENTES_MOCK = [
-  {id:1, name:'Regina Soto', phone:'55 2340 1178', pts:420, next:500, tier:'Oro', spend:8420, orders:34, last:'hoy 17:42', vip:true, bday:'15 abr', since:'2024', note:'Siempre pide La Pistachona Grande. Alérgica a nueces.', favs:['La Pistachona','Agua Mineral','Cafe de Olla']},
-  {id:2, name:'Dani Rivera', phone:'55 8921 0045', pts:180, next:500, tier:'Plata', spend:3240, orders:18, last:'hoy 17:14', vip:false, bday:'03 nov', since:'2024', note:'', favs:['La Cookie Lover','Lotus']},
-  {id:3, name:'Sofía Jiménez', phone:'55 4512 8830', pts:290, next:500, tier:'Plata', spend:5180, orders:24, last:'hoy 16:47', vip:false, bday:'27 abr', since:'2024', note:'Se queja del delay en delivery.', favs:['La Mas Mexa','Agua Natural']},
-  {id:4, name:'Marta Vega', phone:'55 7823 1129', pts:540, next:1000, tier:'Oro', spend:9640, orders:41, last:'ayer', vip:true, bday:'12 jul', since:'2023', note:'Cliente frecuente viernes. Pide ticket por WhatsApp.', favs:['Platanos','KitKat']},
-  {id:5, name:'Luis Ortega', phone:'55 3456 7812', pts:45, next:500, tier:'Bronce', spend:890, orders:6, last:'hace 2 días', vip:false, bday:'08 abr', since:'2025', note:'', favs:['La Mil Leches']},
-  {id:6, name:'Fiesta Oficina', phone:'55 6677 8899', pts:1240, next:2000, tier:'Oro', spend:18640, orders:28, last:'hoy 16:12', vip:true, bday:'—', since:'2023', note:'Cuenta corporativa. Factura con RFC FOF230101ABC.', favs:['Combinado','Agua Natural']},
-  {id:7, name:'Ana Beltrán', phone:'55 9001 2234', pts:120, next:500, tier:'Bronce', spend:1840, orders:12, last:'hace 5 días', vip:false, bday:'22 may', since:'2025', note:'', favs:['Fresas','Oreo']},
-  {id:8, name:'Carlos Ruiz', phone:'55 1122 3344', pts:60, next:500, tier:'Bronce', spend:740, orders:4, last:'hace 40 días', vip:false, bday:'14 abr', since:'2025', note:'Cumpleaños este mes → enviar cupón', favs:['Lady Lotus']},
-  {id:9, name:'Pau M.', phone:'55 5566 7788', pts:380, next:500, tier:'Plata', spend:6420, orders:29, last:'hace 3 días', vip:false, bday:'18 sep', since:'2024', note:'', favs:['La Presumida','La Cookie Lover']},
-  {id:10, name:'Jorge Estrada', phone:'55 9988 7766', pts:15, next:500, tier:'Bronce', spend:240, orders:2, last:'hace 55 días', vip:false, bday:'30 dic', since:'2025', note:'', favs:[]},
-];
+// CLIENTES_MOCK se llena desde Supabase al cargar. Empieza vacío.
+const CLIENTES_MOCK = [];
 function openClientes(){
   CLI.selected = null;
   renderCliList();
@@ -8202,18 +8446,30 @@ function openLanding(client){
   }
   $('#lnd-favs').innerHTML = favHtml.join('');
 
-  // Visitas
-  const branches = ['Centro','Polanco','Roma'];
-  const branchEmojis = ['🌸','🥤','🍓'];
-  const ticketProm = c.orders ? Math.round(c.spend/c.orders) : 150;
-  const visitsData = [];
-  for(let i=0;i<Math.min(3, c.orders || 0);i++){
-    const fav = c.favs && c.favs[i%Math.max(c.favs.length,1)] || 'Fresas';
-    const sec = c.favs && c.favs[(i+1)%Math.max(c.favs.length,1)] || 'Limonada';
-    const d = i===0 ? c.last : ['hace 4 días','hace 9 días','hace 14 días'][i-1];
-    const total = ticketProm + (i%4)*20 - (i%2)*15;
-    visitsData.push({d, items: fav + ' · ' + sec, total, branch: branches[i%3], emoji: branchEmojis[i%3]});
-  }
+  // Visitas reales del cliente desde ORDERS_MOCK
+  const branchByIdLnd = {};
+  if(typeof BRANCHES !== 'undefined') BRANCHES.forEach(b => branchByIdLnd[b.id] = b);
+  const customerOrdersLnd = (typeof ORDERS_MOCK !== 'undefined' ? ORDERS_MOCK : [])
+    .filter(o => o.client === c.name && o.status === 'completada')
+    .slice(0, 3);
+  const fmtAgoLnd = (d) => {
+    if(!d) return '—';
+    const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+    if(days === 0) return 'hoy';
+    if(days === 1) return 'ayer';
+    if(days < 30) return 'hace ' + days + ' días';
+    return 'hace ' + Math.floor(days/30) + ' meses';
+  };
+  const visitsData = customerOrdersLnd.map(o => {
+    const b = branchByIdLnd[o.branch_id] || {};
+    return {
+      d: o.created_at ? fmtAgoLnd(o.created_at) : (o.time || '—'),
+      items: (o.items || []).slice(0,2).map(it => it.name).join(' · ') || 'Compra',
+      total: Number(o.total) || 0,
+      branch: b.name || '—',
+      emoji: b.emoji || '🏪',
+    };
+  });
   $('#lnd-visits').innerHTML = visitsData.length ? visitsData.map(v => `
     <div class="lnv2-visit">
       <div class="lnv2-visit-emoji">${v.emoji}</div>
@@ -8315,28 +8571,58 @@ function renderClientDetail(c){
   };
   const t = tiers[c.tier] || tiers['Bronce'];
 
-  // Birthday detection (mock — assume current month is "abr")
-  const bdayThisMonth = c.bday && c.bday.includes('abr');
-  const since = parseInt(c.since||'2024');
-  const yearsActive = 2025 - since + 1;
+  // Birthday detection
+  const monthNames = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const currentMonth = monthNames[new Date().getMonth()];
+  const bdayThisMonth = c.bday && c.bday.toLowerCase().includes(currentMonth);
+  const since = parseInt(c.since||String(new Date().getFullYear()));
+  const yearsActive = new Date().getFullYear() - since + 1;
 
-  // Build mock visit timeline (12 last visits with branches)
-  const branchEmojis = ['🌸','🥤','🍓'];
-  const branchNames = ['Centro','Polanco','Roma'];
-  const visits = [];
-  for(let i=0;i<Math.min(c.orders, 12);i++){
-    const d = i===0 ? c.last : ['hace ' + (i*3) + ' días','hace ' + (i*4) + ' días','hace ' + (i*7) + ' días'][i%3];
-    const fav = c.favs[i%Math.max(c.favs.length,1)] || 'Fresas';
-    const sec = c.favs[(i+1)%Math.max(c.favs.length,1)] || 'Agua';
-    const total = ticketProm + (i%5)*15 - (i%3)*8;
-    const bIdx = i%3;
-    visits.push({d, items: fav + ' · ' + sec, total, branch: branchNames[bIdx], emoji: branchEmojis[bIdx], n: 247-i*3});
-  }
+  // Timeline de visitas reales del cliente (desde ORDERS_MOCK)
+  const customerOrders = (typeof ORDERS_MOCK !== 'undefined' ? ORDERS_MOCK : [])
+    .filter(o => o.client === c.name && o.status === 'completada')
+    .slice(0, 12);
+  const branchById = {};
+  if(typeof BRANCHES !== 'undefined') BRANCHES.forEach(b => branchById[b.id] = b);
+  const fmtAgo = (d) => {
+    if(!d) return '—';
+    const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+    if(days === 0) return 'hoy';
+    if(days === 1) return 'ayer';
+    if(days < 30) return 'hace ' + days + ' días';
+    if(days < 365) return 'hace ' + Math.floor(days/30) + ' meses';
+    return 'hace ' + Math.floor(days/365) + ' años';
+  };
+  const visits = customerOrders.map(o => {
+    const b = branchById[o.branch_id] || {};
+    const items = (o.items || []).slice(0,2).map(it => it.name).join(' · ') || 'Compra';
+    return {
+      d: o.created_at ? fmtAgo(o.created_at) : (o.time || '—'),
+      items, total: Number(o.total)||0,
+      branch: b.name || '—',
+      emoji: b.emoji || '🏪',
+      n: o.n,
+    };
+  });
 
   // Spending by month (last 6 mock)
-  const months = ['Nov','Dic','Ene','Feb','Mar','Abr'];
-  const spendByMonth = months.map((m,i) => Math.round(c.spend/6 * (0.6 + Math.sin(i*0.9)*0.4 + (i===5?0.3:0))));
-  const maxSpend = Math.max(...spendByMonth);
+  // Gasto por mes (últimos 6 meses, calculado desde ORDERS_MOCK)
+  const months = [];
+  const spendByMonth = [];
+  const today = new Date();
+  for(let i=5; i>=0; i--){
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const dEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 1);
+    const monthAbbr = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][d.getMonth()];
+    months.push(monthAbbr);
+    const monthSpend = customerOrders.filter(o => {
+      if(!o.created_at) return false;
+      const od = new Date(o.created_at);
+      return od >= d && od < dEnd;
+    }).reduce((s,o) => s + (Number(o.total)||0), 0);
+    spendByMonth.push(monthSpend);
+  }
+  const maxSpend = Math.max(1, ...spendByMonth);
 
   $('#cli-detail').innerHTML = `
     <!-- HERO -->
@@ -8403,9 +8689,20 @@ function renderClientDetail(c){
         <button class="clid-pts-btn custom" onclick="adjustPtsCustom(${c.id})">Otro…</button>
       </div>
       <div class="clid-pts-history">
-        <div class="clid-tag">Hoy 17:42 · +14 pts · Compra $145</div>
-        <div class="clid-tag">Ayer 18:30 · +21 pts · Compra $209</div>
-        <div class="clid-tag" style="background:var(--warning-soft);color:var(--warning);">15 abr · −500 pts · Canje fresas gratis</div>
+        ${(() => {
+          // Buscar últimas compras del cliente
+          const recent = (ORDERS_MOCK || [])
+            .filter(o => o.client === c.name && o.status === 'completada')
+            .slice(0, 5);
+          if(!recent.length) return '<div class="clid-tag" style="opacity:0.6;">Sin historial de compras</div>';
+          return recent.map(o => {
+            const pts = Math.round((Number(o.total)||0) / 10); // ~1pt por cada $10
+            const when = o.created_at
+              ? new Date(o.created_at).toLocaleDateString('es-MX', {day:'2-digit', month:'short'})
+              : (o.time || '—');
+            return `<div class="clid-tag">${when} · +${pts} pts · Compra $${o.total}</div>`;
+          }).join('');
+        })()}
       </div>
     </div>
 
@@ -8503,6 +8800,8 @@ function renderClientDetail(c){
 }
 
 /* ─── INVENTARIO ─── */
+// Catálogo inicial de insumos. Editable desde la app.
+// TODO: sincronizar con tabla `inventory` en Supabase (similar a productos/clientes).
 let INV = { filter:'todos' };
 const INV_MOCK = [
   // Frutas
@@ -8989,6 +9288,56 @@ let CLUB = { step:'search', query:'', client:null };
 let currentClub = null;
 
 /* ─── BRANCHES (multi-sucursal) ─── */
+// Calcula KPIs por sucursal desde ORDERS_MOCK al vuelo
+function computeBranchKPIs(){
+  const result = {};
+  if(typeof BRANCHES === 'undefined') return result;
+  if(typeof ORDERS_MOCK === 'undefined') return result;
+
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startYesterday = new Date(startToday); startYesterday.setDate(startYesterday.getDate()-1);
+  const startWeek = new Date(now); startWeek.setDate(startWeek.getDate()-7);
+
+  BRANCHES.forEach(b => {
+    const branchOrders = ORDERS_MOCK.filter(o =>
+      o.status === 'completada' &&
+      (o.branch_id === b.id || (!o.branch_id && b.id === currentBranchId))
+    );
+
+    const inRange = (o, from, to) => {
+      if(!o.created_at) return b.id === currentBranchId; // sin fecha asumimos hoy + sucursal actual
+      const d = new Date(o.created_at);
+      return d >= from && (!to || d < to);
+    };
+
+    const todayOrders = branchOrders.filter(o => inRange(o, startToday, null));
+    const yesterdayOrders = branchOrders.filter(o => inRange(o, startYesterday, startToday));
+    const weekOrders = branchOrders.filter(o => inRange(o, startWeek, null));
+
+    const today = todayOrders.reduce((s,o) => s + (Number(o.total)||0), 0);
+    const yesterday = yesterdayOrders.reduce((s,o) => s + (Number(o.total)||0), 0);
+    const semana = weekOrders.reduce((s,o) => s + (Number(o.total)||0), 0);
+    const ordenesHoy = todayOrders.length;
+    const ticket = ordenesHoy ? Math.round(today / ordenesHoy) : 0;
+    const vsAyer = yesterday ? Math.round((today - yesterday) * 100 / yesterday) : 0;
+
+    // Clientes únicos hoy
+    const clubActivos = new Set(todayOrders.map(o => o.client).filter(c => c)).size;
+
+    // Top productos hoy
+    const counts = {};
+    todayOrders.forEach(o => (o.items || []).forEach(it => {
+      counts[it.name] = (counts[it.name] || 0) + (Number(it.qty) || 1);
+    }));
+    const top = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0,3).map(([n,q]) => ({n,q}));
+
+    result[b.id] = { today, ordenesHoy, ticket, vsAyer, semana, clubActivos, top };
+  });
+
+  return result;
+}
+
 const BRANCHES = [
   { id:'balbuena', emoji:'🌸', class:'c1', name:'Balbuena', addr:'Balbuena · CDMX', tel:'', hours:'11:00 – 22:00', principal:true, status:'open',
     today:0, ordenesHoy:0, ticket:0, vsAyer:0, semana:0, clubActivos:0, top:[] },
@@ -9003,7 +9352,10 @@ function openBranchPicker(){
 }
 function renderBranchPicker(){
   const body = $('#branch-body');
-  body.innerHTML = BRANCHES.map(b => `
+  const kpis = computeBranchKPIs();
+  body.innerHTML = BRANCHES.map(b => {
+    const today = (kpis[b.id]?.today || 0);
+    return `
     <div class="bp-card ${b.id===currentBranchId?'current':''}" onclick="switchBranch('${b.id}')">
       <div class="bp-emoji ${b.class}">${b.emoji}</div>
       <div class="bp-info">
@@ -9012,11 +9364,11 @@ function renderBranchPicker(){
         <div class="bp-meta">
           <span class="${b.status==='open'?'bp-meta-on':'bp-meta-off'}">${b.status==='open'?'Abierto':'Cerrado'}</span>
           <span>· ${b.hours}</span>
-          <span>· $${b.today.toLocaleString()} hoy</span>
+          <span>· $${today.toLocaleString()} hoy</span>
         </div>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
 }
 function switchBranch(id){
   if(id===currentBranchId){ closeSheet('branch'); return; }
@@ -9336,6 +9688,18 @@ function recomputeCorteFromOrders(){
   if(typeof ROLE !== 'undefined' && ROLE.user){
     CORTE.apertura.user = ROLE.user.alias || ROLE.user.nombre || '—';
   }
+
+  // Sincronizar fondo/retiros/depositos desde el estado real de caja
+  if(typeof getCajaState === 'function'){
+    const c = getCajaState();
+    CORTE.fondo = c.fondo || 0;
+    CORTE.retiros = (typeof calcRetirosHoy === 'function') ? calcRetirosHoy() : 0;
+    CORTE.depositos = (typeof calcDepositosHoy === 'function') ? calcDepositosHoy() : 0;
+    if(c.apertura){
+      CORTE.apertura.time = new Date(c.apertura.time).toTimeString().slice(0,5);
+      if(!completadas.length) CORTE.apertura.user = c.apertura.user || CORTE.apertura.user;
+    }
+  }
 }
 
 function corteVentasEfectivo(){ return CORTE.pago.efectivo; }
@@ -9439,6 +9803,18 @@ function _recomputeCorteFromList(list){
   }
   if(typeof ROLE !== 'undefined' && ROLE.user){
     CORTE.apertura.user = ROLE.user.alias || ROLE.user.nombre || '—';
+  }
+
+  // Sincronizar fondo/retiros/depositos desde el estado real de caja
+  if(typeof getCajaState === 'function'){
+    const c = getCajaState();
+    CORTE.fondo = c.fondo || 0;
+    CORTE.retiros = (typeof calcRetirosHoy === 'function') ? calcRetirosHoy() : 0;
+    CORTE.depositos = (typeof calcDepositosHoy === 'function') ? calcDepositosHoy() : 0;
+    if(c.apertura){
+      CORTE.apertura.time = new Date(c.apertura.time).toTimeString().slice(0,5);
+      if(!completadas.length) CORTE.apertura.user = c.apertura.user || CORTE.apertura.user;
+    }
   }
 }
 function closeCorte(){
@@ -9853,15 +10229,14 @@ function finalizarCorte(){
 ═══════════════════════════════════════════════════════════════ */
 const AJ = {
   sec: 'negocio',
-  // mock state
-  rfc: 'LFR250101AB1', razon: 'Lady Fresa Mexicana SAPI de CV', regimen: 'General de Ley',
+  // Configuración del negocio (editable en pantalla Ajustes; persiste vía Supabase)
+  rfc: '', razon: 'Lady Fresa Mexicana', regimen: 'General de Ley',
   iva: 16, ivaIncluido: true, moneda: 'MXN',
   tipsEnabled: true, tipsSugeridas: [10,15,20], tipsDef: 15,
   pagoEfectivo: true, pagoTarjeta: true, pagoTransfer: true, pagoVales: false,
   reciboLogo: true, reciboQR: true, reciboMods: true, reciboFolio: true, reciboFooter: '¡Gracias por tu visita! 🍓',
   reciboCopias: 1,
   clubMeta: 10, clubReward: 'Fresas Mediano gratis',
-  pinAdmin: '0000', pinCajero: '1234',
   autoLock: 5, // min
   theme: 'auto', // light | dark | auto
   density: 'normal',
@@ -9893,6 +10268,20 @@ function ajSet(key, val){
   obj[path[path.length-1]] = val;
   setAjSec(AJ.sec);
 }
+// Setter sin re-render (para inputs de texto, evita perder el foco)
+function ajSetText(key, val){
+  const path = key.split('.');
+  let obj = AJ; for(let i=0;i<path.length-1;i++) obj = obj[path[i]];
+  obj[path[path.length-1]] = val;
+  if(typeof window.persistAll === 'function') window.persistAll();
+}
+function updateBranchField(field, val){
+  const b = getBranch();
+  if(!b) return;
+  b[field] = val;
+  if(typeof window.persistAll === 'function') window.persistAll();
+  if(window.LFSync && window.LFSync.pushBranches) window.LFSync.pushBranches();
+}
 function tg(on){ return `<div class="aj-toggle ${on?'on':''}"></div>`; }
 
 function renderAjSection(sec){
@@ -9905,26 +10294,26 @@ function renderAjSection(sec){
         <div class="aj-card-h">Identidad <span class="aj-tag">Visible en recibo</span></div>
         <div class="aj-row">
           <div><div class="aj-row-k">Nombre comercial</div><div class="aj-row-d">Aparece en el ticket y la app</div></div>
-          <input class="aj-input" value="LADY FRESA">
+          <input class="aj-input" value="${(AJ.nombreComercial || 'LADY FRESA').replace(/"/g,'&quot;')}" oninput="ajSetText('nombreComercial', this.value)">
         </div>
         <div class="aj-row">
           <div><div class="aj-row-k">Razón social</div><div class="aj-row-d">Para facturación CFDI</div></div>
-          <input class="aj-input" value="${AJ.razon}" style="min-width:280px;">
+          <input class="aj-input" value="${(AJ.razon || '').replace(/"/g,'&quot;')}" style="min-width:280px;" oninput="ajSetText('razon', this.value)">
         </div>
         <div class="aj-row">
           <div><div class="aj-row-k">Eslogan</div><div class="aj-row-d">Aparece bajo el logo en el recibo</div></div>
-          <input class="aj-input" value="Fresas con crema mexicana" style="min-width:240px;">
+          <input class="aj-input" value="${(AJ.eslogan || '').replace(/"/g,'&quot;')}" placeholder="Ej. Fresas con crema mexicana" style="min-width:240px;" oninput="ajSetText('eslogan', this.value)">
         </div>
       </div>
       <div class="aj-card">
         <div class="aj-card-h">Sucursal actual <span class="aj-tag">${b.name}</span></div>
         <div class="aj-row">
           <div><div class="aj-row-k">Dirección</div></div>
-          <input class="aj-input" value="${b.addr}" style="min-width:300px;">
+          <input class="aj-input" value="${(b.addr || '').replace(/"/g,'&quot;')}" style="min-width:300px;" oninput="updateBranchField('addr', this.value)">
         </div>
         <div class="aj-row">
           <div><div class="aj-row-k">Teléfono</div></div>
-          <input class="aj-input sm" value="${b.tel}">
+          <input class="aj-input sm" value="${(b.tel || '').replace(/"/g,'&quot;')}" placeholder="Ej. 55 1234 5678" oninput="updateBranchField('tel', this.value)">
         </div>
         <div class="aj-row">
           <div><div class="aj-row-k">Sucursal principal</div><div class="aj-row-d">Centraliza reportes consolidados</div></div>
@@ -9939,15 +10328,15 @@ function renderAjSection(sec){
         <div class="aj-card-h">Contacto y redes</div>
         <div class="aj-row">
           <div><div class="aj-row-k">WhatsApp</div></div>
-          <input class="aj-input" value="55 1234 5678">
+          <input class="aj-input" value="${(AJ.whatsapp || '').replace(/"/g,'&quot;')}" placeholder="Ej. 55 1234 5678" oninput="ajSetText('whatsapp', this.value)">
         </div>
         <div class="aj-row">
           <div><div class="aj-row-k">Instagram</div></div>
-          <input class="aj-input" value="@ladyfresamx">
+          <input class="aj-input" value="${(AJ.instagram || '').replace(/"/g,'&quot;')}" placeholder="Ej. @ladyfresamx" oninput="ajSetText('instagram', this.value)">
         </div>
         <div class="aj-row">
           <div><div class="aj-row-k">Sitio web</div></div>
-          <input class="aj-input" value="ladyfresa.mx">
+          <input class="aj-input" value="${(AJ.web || '').replace(/"/g,'&quot;')}" placeholder="Ej. ladyfresa.mx" oninput="ajSetText('web', this.value)">
         </div>
       </div>`;
   }
@@ -10087,7 +10476,7 @@ function renderAjSection(sec){
           <div onclick="ajToggle('pagoEfectivo')">${tg(AJ.pagoEfectivo)}</div>
         </div>
         <div class="aj-row">
-          <div style="display:flex;gap:10px;align-items:center;"><span style="font-size:24px;">💳</span><div><div class="aj-row-k">Tarjeta · Terminal</div><div class="aj-row-d">Mercado Pago Point · Conectada</div></div></div>
+          <div style="display:flex;gap:10px;align-items:center;"><span style="font-size:24px;">💳</span><div><div class="aj-row-k">Tarjeta · Terminal</div><div class="aj-row-d">${((AJ.integrations||{}).clip || {}).connected ? sanitize(((AJ.integrations||{}).clip || {}).provider || 'Terminal') + ' · Conectada' : 'Sin terminal configurada'}</div></div></div>
           <div onclick="ajToggle('pagoTarjeta')">${tg(AJ.pagoTarjeta)}</div>
         </div>
         <div class="aj-row">
@@ -10210,6 +10599,11 @@ function renderAjSection(sec){
   }
 
   if(sec==='hardware'){
+    const ints = AJ.integrations || {};
+    const ep = ints.epson || {};
+    const clip = ints.clip || {};
+    const epConnected = ep.connected || (ep.model && ep.ip);
+    const clipConnected = clip.connected || clip.provider;
     return `
       <div class="aj-h">Hardware</div>
       <div class="aj-sub">Dispositivos conectados a este POS</div>
@@ -10217,38 +10611,32 @@ function renderAjSection(sec){
         <div class="aj-card-h">Periféricos</div>
         <div class="aj-hw-row">
           <div class="aj-hw-ico">🖨️</div>
-          <div><div class="aj-hw-name">Impresora térmica · Cocina</div><div class="aj-hw-meta">Epson TM-m30 · USB · 80mm</div></div>
-          <div class="aj-hw-status on">Conectada</div>
-          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openImpresora()">Configurar</button>
-        </div>
-        <div class="aj-hw-row">
-          <div class="aj-hw-ico">🧾</div>
-          <div><div class="aj-hw-name">Impresora térmica · Mostrador</div><div class="aj-hw-meta">Star TSP143 · LAN · 192.168.1.42</div></div>
-          <div class="aj-hw-status on">Conectada</div>
-          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openImpresora()">Configurar</button>
+          <div><div class="aj-hw-name">Impresora térmica</div><div class="aj-hw-meta">${epConnected ? sanitize((ep.model || 'Modelo') + ' · ' + (ep.conn || '') + (ep.ip ? ' · ' + ep.ip : '')) : 'Sin configurar'}</div></div>
+          <div class="aj-hw-status ${epConnected ? 'on' : 'off'}">${epConnected ? 'Conectada' : 'Sin configurar'}</div>
+          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openIntegration('epson')">Configurar</button>
         </div>
         <div class="aj-hw-row">
           <div class="aj-hw-ico">💳</div>
-          <div><div class="aj-hw-name">Terminal de pago</div><div class="aj-hw-meta">Mercado Pago Point · Bluetooth</div></div>
-          <div class="aj-hw-status on">Conectada</div>
-          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;">Configurar</button>
+          <div><div class="aj-hw-name">Terminal de pago</div><div class="aj-hw-meta">${clipConnected ? sanitize((clip.provider || '') + (clip.conn ? ' · ' + clip.conn : '')) : 'Sin configurar'}</div></div>
+          <div class="aj-hw-status ${clipConnected ? 'on' : 'off'}">${clipConnected ? 'Conectada' : 'Sin configurar'}</div>
+          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openIntegration('clip')">Configurar</button>
         </div>
         <div class="aj-hw-row">
           <div class="aj-hw-ico">🗄️</div>
-          <div><div class="aj-hw-name">Cajón de dinero</div><div class="aj-hw-meta">Conectado a impresora térmica</div></div>
-          <div class="aj-hw-status on">Detectado</div>
-          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;">Probar</button>
+          <div><div class="aj-hw-name">Cajón de dinero</div><div class="aj-hw-meta">${epConnected ? 'Conectado a impresora térmica' : 'Requiere impresora térmica'}</div></div>
+          <div class="aj-hw-status ${epConnected ? 'on' : 'off'}">${epConnected ? 'Detectado' : 'No detectado'}</div>
+          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="${epConnected ? `showToast('Pulso enviado al cajón', 0, '🗄️')` : `openIntegration('epson')`}">${epConnected ? 'Probar' : 'Configurar'}</button>
         </div>
         <div class="aj-hw-row">
           <div class="aj-hw-ico">📷</div>
-          <div><div class="aj-hw-name">Escáner de código</div><div class="aj-hw-meta">Cámara frontal · iPad</div></div>
-          <div class="aj-hw-status warn">Permiso pendiente</div>
-          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;">Activar</button>
+          <div><div class="aj-hw-name">Escáner de código</div><div class="aj-hw-meta">Cámara del dispositivo</div></div>
+          <div class="aj-hw-status warn">Permiso al usar</div>
+          <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openSheet('scanner')">Probar</button>
         </div>
         <div class="aj-hw-row">
           <div class="aj-hw-ico">📺</div>
-          <div><div class="aj-hw-name">Pantalla del cliente</div><div class="aj-hw-meta">Monitor secundario · No detectado</div></div>
-          <div class="aj-hw-status off">Desconectada</div>
+          <div><div class="aj-hw-name">Pantalla del cliente</div><div class="aj-hw-meta">Monitor secundario opcional</div></div>
+          <div class="aj-hw-status off">Sin detectar</div>
           <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openCustomerDisplay()">Probar</button>
         </div>
       </div>
@@ -10476,12 +10864,24 @@ function openUsuarios(){
 
 /* ─── DISPOSITIVOS: respuesta real (no alert) ─── */
 function openCajonModal(){
-  showToast('🗄️ Cajón abierto · cierre cuando termine', 0, '🔓');
-  vibrate([30,50,30]);
+  const ep = (AJ.integrations || {}).epson || {};
+  if(ep.connected || (ep.model && ep.ip)){
+    showToast('🗄️ Cajón abierto · cierre cuando termine', 0, '🔓');
+    vibrate([30,50,30]);
+  } else {
+    showToast('⚠️ Configura la impresora térmica para usar el cajón', 0, '⚙️');
+  }
 }
-// Stub: terminal y scanner abren toasts con simulación
+// Stub: terminal y scanner abren toasts con info real
 window.menuActionDevice = function(key){
-  if(key==='terminal'){ showToast('💳 Terminal conectada · Verifone P400', 0, '✓'); }
+  if(key==='terminal'){
+    const clip = (AJ.integrations || {}).clip || {};
+    if(clip.connected || clip.provider){
+      showToast(`💳 ${clip.provider || 'Terminal'} lista para cobrar`, 0, '✓');
+    } else {
+      showToast('⚠️ Configura una terminal en Ajustes › Integraciones', 0, '⚙️');
+    }
+  }
   else if(key==='scanner'){ showToast('📷 Lector activado · listo para escanear', 0, '✓'); }
 };
 
@@ -10704,7 +11104,7 @@ function reprintTicket(n){
         <div style="display:flex;justify-content:space-between;margin-top:6px;">${({efectivo:'Efectivo',tarjeta:'Tarjeta',transfer:'Transferencia'})[o.pay]}<span>$${o.total}</span></div>
       </div>
       <div style="text-align:center;margin-top:14px;font-size:10px;">
-        ¡Gracias por tu compra! 🍓<br>Síguenos @ladyfresa
+        ${sanitize(AJ.reciboFooter || '¡Gracias por tu compra! 🍓').replace(/\n/g,'<br>')}${AJ.instagram?`<br>Síguenos ${sanitize(AJ.instagram)}`:''}
       </div>
       <div style="position:absolute;top:8px;right:8px;display:flex;gap:6px;">
         <button onclick="window.print()" style="border:none;background:#D93956;color:#fff;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:10px;font-family:var(--font-body);">Imprimir</button>
@@ -11454,49 +11854,95 @@ function openTaxEditor(key){
 
 /* ─── EDITOR DE INTEGRACIONES ─── */
 function openIntegration(key){
-  const cfg = {
-    epson: { title:'EPSON TM-m30II', icon:'🖨', status:'connected', sub:'Impresora térmica',
-      info:[['Modelo','TM-m30II'],['Conexión','Wi-Fi'],['IP','192.168.1.42'],['Última impresión','hace 2 min']],
-      actions:[['Imprimir prueba','probar'],['Reconectar','reconectar']]},
-    clip: { title:'Clip Pro', icon:'💳', status:'connected', sub:'Terminal bancaria',
-      info:[['Tipo','Mercado Pago Point'],['Conexión','Bluetooth'],['Versión','3.4.1'],['Última transacción','hoy 17:42']],
-      actions:[['Cargar batería',''],['Reconectar','reconectar']]},
-    whatsapp: { title:'WhatsApp Business', icon:'📲', status:'active', sub:'Envío de tickets',
-      info:[['Número','55 1234 5678'],['Plantillas aprobadas','3'],['Mensajes enviados hoy','24']],
-      actions:[['Configurar plantillas',''],['Ver historial','']]},
-    sat: { title:'Facturación SAT', icon:'📧', status:'warn', sub:'CFDI 4.0',
-      info:[['Estado','Configuración pendiente'],['PAC','—'],['Folios disponibles','—']],
-      actions:[['Configurar ahora','primary']]},
-    rappi: { title:'Rappi / Didi Food', icon:'🛵', status:'off', sub:'Delivery partners',
-      info:[['Estado','No conectado'],['Comisión Rappi','17%'],['Comisión Didi','15%']],
-      actions:[['Conectar Rappi','primary'],['Conectar Didi Food','primary']]},
-  }[key] || {title:'Integración', icon:'🔌', status:'off', sub:'', info:[], actions:[]};
-  const statusPill = {
-    connected: '<span class="pill pill-success">● Conectada</span>',
-    active: '<span class="pill pill-success">● Activa</span>',
-    warn: '<span class="pill pill-warning">● Configurar</span>',
-    off: '<span class="pill pill-neutral">● Desconectada</span>',
-  }[cfg.status];
+  const ints = (AJ.integrations || {});
+  const saved = ints[key] || {};
+  // Plantillas base por tipo de integración (sin datos demo de conexión)
+  const meta = {
+    epson: { title: saved.title || 'Impresora térmica', icon:'🖨', sub:'Tickets de venta',
+      fields: [
+        { k:'model', label:'Modelo', val:saved.model || '' },
+        { k:'conn', label:'Conexión', val:saved.conn || 'LAN/Wi-Fi' },
+        { k:'ip', label:'IP', val:saved.ip || '' },
+      ],
+      actions:[['Imprimir prueba','probar'],['Guardar configuración','primary']]},
+    clip: { title:'Terminal de pago', icon:'💳', sub:'Cobros con tarjeta',
+      fields: [
+        { k:'provider', label:'Proveedor', val:saved.provider || '' },
+        { k:'serial', label:'Número de serie', val:saved.serial || '' },
+        { k:'conn', label:'Conexión', val:saved.conn || 'Bluetooth' },
+      ],
+      actions:[['Guardar configuración','primary']]},
+    whatsapp: { title:'WhatsApp Business', icon:'📲', sub:'Envío de tickets a clientes',
+      fields: [
+        { k:'phone', label:'Número del negocio', val:saved.phone || '' },
+        { k:'token', label:'Token API', val:saved.token || '' },
+      ],
+      actions:[['Guardar configuración','primary']]},
+    sat: { title:'Facturación SAT', icon:'📧', sub:'CFDI 4.0',
+      fields: [
+        { k:'pac', label:'PAC (proveedor)', val:saved.pac || '' },
+        { k:'rfc', label:'RFC emisor', val:saved.rfc || AJ.rfc || '' },
+        { k:'serie', label:'Serie de folios', val:saved.serie || '' },
+      ],
+      actions:[['Guardar configuración','primary']]},
+    rappi: { title:'Delivery partners', icon:'🛵', sub:'Rappi, Didi Food, Uber Eats',
+      fields: [
+        { k:'rappi_id', label:'ID Rappi', val:saved.rappi_id || '' },
+        { k:'didi_id', label:'ID Didi Food', val:saved.didi_id || '' },
+      ],
+      actions:[['Guardar configuración','primary']]},
+  }[key] || { title:'Integración', icon:'🔌', sub:'', fields:[], actions:[] };
+
+  // Status pill: en base a si está configurado o no
+  const isConfigured = meta.fields.some(f => f.val && String(f.val).trim());
+  const statusPill = isConfigured
+    ? '<span class="pill pill-success">● Conectada</span>'
+    : '<span class="pill pill-neutral">● Sin configurar</span>';
+
+  const draft = {};
+  meta.fields.forEach(f => draft[f.k] = f.val);
+
+  const fieldRows = meta.fields.map(f => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px var(--sp-3);border-bottom:1px solid var(--border);gap:var(--sp-3);">
+      <span style="color:var(--ink-500);font-size:13px;min-width:120px;">${f.label}</span>
+      <input class="ae-input" style="flex:1;font-size:13px;padding:6px 10px;" value="${(f.val||'').toString().replace(/"/g,'&quot;')}" placeholder="—" oninput="window._intDraft['${f.k}']=this.value">
+    </div>`).join('');
+
   const body = `
     <div class="ae-field" style="text-align:center;">
-      <div style="font-size:64px;line-height:1;">${cfg.icon}</div>
+      <div style="font-size:64px;line-height:1;">${meta.icon}</div>
       <div style="margin-top:10px;">${statusPill}</div>
     </div>
     <div class="ae-field">
-      <div class="ae-label">Información</div>
-      <div class="adm-table">
-        ${cfg.info.map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:10px var(--sp-3);border-bottom:1px solid var(--border);font-size:13px;"><span style="color:var(--ink-500);">${k}</span><span style="font-weight:600;color:var(--ink-900);">${v}</span></div>`).join('')}
-      </div>
+      <div class="ae-label">Configuración</div>
+      <div class="adm-table">${fieldRows}</div>
     </div>
     <div class="ae-field">
-      <div class="ae-label">Acciones</div>
-      ${cfg.actions.map(([label,style])=>`<button class="${style==='primary'?'ae-btn-pri':'ae-btn-sec'}" style="margin-bottom:6px;width:100%;" onclick="showToast('${label} ejecutado', 0, '✓')">${label}</button>`).join('')}
-      ${cfg.status==='connected' || cfg.status==='active' ? `<button class="ae-btn-sec" style="margin-top:6px;width:100%;color:var(--brand-red);" onclick="closeAdminEditor();showToast('Integración desconectada', 0, '⏏')">Desconectar</button>` : ''}
+      ${isConfigured ? `<button class="ae-btn-sec" style="margin-top:6px;width:100%;color:var(--brand-red);" onclick="window._intDisconnect('${key}')">Desconectar</button>` : ''}
     </div>
   `;
+  window._intDraft = draft;
+  window._intDisconnect = (k) => {
+    if(!AJ.integrations) AJ.integrations = {};
+    delete AJ.integrations[k];
+    if(typeof window.persistAll === 'function') window.persistAll();
+    closeAdminEditor();
+    showToast('Integración desconectada', 0, '⏏');
+    setAjSec(AJ.sec);
+  };
   openAdminEditor({
-    title: cfg.title, sub: cfg.sub, icon: cfg.icon, body,
-    draft:{}, okLabel:'Cerrar', onOk:()=>{}
+    title: meta.title, sub: meta.sub, icon: meta.icon, body,
+    draft, okLabel:'Guardar',
+    onOk: () => {
+      if(!AJ.integrations) AJ.integrations = {};
+      AJ.integrations[key] = { ...draft, configured: true, connected: Object.values(draft).some(v => v && String(v).trim()) };
+      // Resumen corto para mostrar en la lista
+      const filled = Object.entries(draft).filter(([_,v]) => v && String(v).trim());
+      if(filled.length) AJ.integrations[key].summary = filled.slice(0,2).map(([k,v])=>v).join(' · ');
+      if(typeof window.persistAll === 'function') window.persistAll();
+      showToast('Configuración guardada', 0, '✓');
+      setAjSec(AJ.sec);
+    }
   });
 }
 
@@ -11638,6 +12084,7 @@ loadAll();
 // Re-renderizar después de cargar
 if(typeof renderProducts === 'function') renderProducts();
 if(typeof renderCats === 'function') renderCats();
+if(typeof renderLoginChips === 'function') renderLoginChips();
 </script>
 
 <!-- ═════════════════════ SUPABASE SYNC ═════════════════════ -->
