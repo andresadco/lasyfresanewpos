@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Lady Fresa · POS</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,400&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css">
@@ -11931,7 +11934,9 @@ function pickProdImage(){
   };
   inp.click();
 }
-// Comprime una data URL redimensionando a maxSide px y calidad jpeg
+// Comprime una data URL redimensionando a maxSide px
+// Detecta transparencia: si la imagen es PNG transparente → mantiene PNG
+// Si es JPG / opaca → comprime a JPEG con calidad dada
 function compressImage(dataUrl, maxSide, quality, callback){
   const img = new Image();
   img.onload = () => {
@@ -11949,7 +11954,26 @@ function compressImage(dataUrl, maxSide, quality, callback){
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, width, height);
-    callback(canvas.toDataURL('image/jpeg', quality));
+    // Detectar si tiene transparencia (revisar muestras de píxeles)
+    let hasAlpha = false;
+    try {
+      const sample = ctx.getImageData(0, 0, width, height).data;
+      // Revisar el canal alpha (cada 4to byte) — solo muestreamos cada 100 píxeles para velocidad
+      const step = Math.max(1, Math.floor(sample.length / 400) * 4);
+      for(let i = 3; i < sample.length; i += step){
+        if(sample[i] < 250){ hasAlpha = true; break; }
+      }
+    } catch(e){
+      // CORS o similar — asumir que tiene alpha si es PNG original
+      hasAlpha = dataUrl.startsWith('data:image/png');
+    }
+    if(hasAlpha){
+      // Mantener PNG (no soporta quality, pero preserva transparencia)
+      callback(canvas.toDataURL('image/png'));
+    } else {
+      // JPEG con fondo blanco implícito y compresión
+      callback(canvas.toDataURL('image/jpeg', quality));
+    }
   };
   img.onerror = () => callback(dataUrl); // si falla, usar original
   img.src = dataUrl;
@@ -12582,6 +12606,21 @@ function loadAll(){
       return true;
     };
     if(typeof PRODUCTS !== 'undefined') load('PRODUCTS', PRODUCTS);
+    // ── LIMPIEZA: borrar imágenes JPEG base64 viejas (versión con bug del fondo negro) ──
+    // El fix nuevo guarda PNG en lugar de JPEG cuando hay transparencia. Si ya hay
+    // un JPEG base64 guardado, lo borramos para que la app vuelva a cargar el PNG original.
+    if(typeof PRODUCTS !== 'undefined'){
+      let cleaned = 0;
+      PRODUCTS.forEach(p => {
+        if(p.img && typeof p.img === 'string' && p.img.startsWith('data:image/jpeg')){
+          p.img = ''; // dejar vacío para que use fallback o que la próxima carga de Supabase traiga la URL real
+          cleaned++;
+        }
+      });
+      if(cleaned > 0){
+        console.log('[LF-POS] Limpiadas', cleaned, 'imágenes JPEG viejas');
+      }
+    }
     if(typeof CATS !== 'undefined') load('CATS', CATS);
     if(typeof MODS !== 'undefined') load('MODS', MODS);
     if(typeof DESCUENTOS !== 'undefined') load('DESCUENTOS', DESCUENTOS);
@@ -12625,6 +12664,7 @@ if(typeof renderLoginChips === 'function') renderLoginChips();
   try { if(typeof eval(fn) === 'function') window[fn] = eval(fn); } catch(e){}
 });
 console.log('[LF-POS] Funciones expuestas:', Object.keys(window).filter(k => /^(open|save|delete|render|refresh|aj)/.test(k)).length);
+console.log('[LF-POS] Versión:', 'v2026.05.22.fix-imagen-jpeg');
 </script>
 
 <!-- ═════════════════════ SUPABASE SYNC ═════════════════════ -->

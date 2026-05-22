@@ -87,10 +87,15 @@
       // PRODUCTS
       if(products.data && typeof PRODUCTS !== 'undefined'){
         PRODUCTS.length = 0;
-        products.data.forEach(p => PRODUCTS.push({
-          id: p.id, name: p.name, cat: p.cat, price: Number(p.price),
-          desc: p.desc, img: (p.img && !p.img.startsWith('blob:')) ? p.img : null, mods: p.mods || [], active: p.active !== false,
-        }));
+        products.data.forEach(p => {
+          let imgVal = p.img;
+          // Ignorar blob: URLs (solo válidas en una sesión)
+          if(imgVal && imgVal.startsWith('blob:')) imgVal = null;
+          PRODUCTS.push({
+            id: p.id, name: p.name, cat: p.cat, price: Number(p.price),
+            desc: p.desc, img: imgVal, mods: p.mods || [], active: p.active !== false,
+          });
+        });
       }
 
       // CATS (incluye "Todos" al inicio)
