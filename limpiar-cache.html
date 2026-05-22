@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html><head><title>Limpiar cache Lady Fresa POS</title><meta charset="utf-8">
+<style>body{font-family:system-ui;padding:40px;background:#fff5f7;color:#1a1115;text-align:center;}
+button{background:#D93956;color:#fff;border:none;padding:16px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin:8px;}
+button.gray{background:#666;}
+.ok{color:#0a8a3a;font-weight:600;}</style></head>
+<body>
+<h1>🧹 Limpiar cache local · Lady Fresa POS</h1>
+<p>Si la app no carga los datos nuevos de Supabase, borra el cache aquí.</p>
+<button onclick="limpiar()">Borrar cache local</button>
+<button class="gray" onclick="ver()">Ver qué hay guardado</button>
+<div id="out" style="margin-top:24px;text-align:left;background:#fff;padding:20px;border-radius:12px;max-width:600px;margin:24px auto;font-family:monospace;font-size:13px;"></div>
+<script>
+function limpiar(){
+  const keys = Object.keys(localStorage).filter(k => k.startsWith('lf_'));
+  keys.forEach(k => localStorage.removeItem(k));
+  document.getElementById('out').innerHTML = '<div class="ok">✓ Cache borrado · ' + keys.length + ' keys eliminadas</div><div style="margin-top:8px;">Ahora abre index.html — la app va a bajar todo desde Supabase de cero.</div>';
+}
+function ver(){
+  const keys = Object.keys(localStorage).filter(k => k.startsWith('lf_'));
+  document.getElementById('out').innerHTML = keys.length ? '<b>Keys guardadas:</b><br>' + keys.map(k => '· ' + k + ' (' + (localStorage.getItem(k).length/1024).toFixed(1) + ' KB)').join('<br>') : '<div class="ok">✓ Cache ya está limpio</div>';
+}
+ver();
+</script></body></html>

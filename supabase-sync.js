@@ -64,19 +64,24 @@
   // ── LOAD: bajar todo de Supabase ──────────────────────────────
   async function loadFromSupabase(){
     showSyncStatus('Sincronizando…', 'sync');
+    // Wrapper que captura errores por query individual (tabla puede no existir)
+    const safe = (promise) => promise.catch(err => {
+      console.warn('[LF-Sync] Query falló (¿tabla no existe?):', err?.message || err);
+      return { data: null, error: err };
+    });
     try {
       const [products, categories, modifiers, discounts, customers, users, branches, parkedOrders, settings, orders, inventory] = await Promise.all([
-        sb.from('products').select('*').order('position', {ascending:true}),
-        sb.from('categories').select('*').order('position', {ascending:true}),
-        sb.from('modifiers').select('*'),
-        sb.from('discounts').select('*'),
-        sb.from('customers').select('*'),
-        sb.from('app_users').select('*'),
-        sb.from('branches').select('*'),
-        sb.from('parked_orders').select('*').order('created_at', {ascending:false}),
-        sb.from('app_settings').select('*').eq('id',1).maybeSingle(),
-        sb.from('orders').select('*').order('created_at', {ascending:false}).limit(100),
-        sb.from('inventory').select('*').order('cat', {ascending:true}),
+        safe(sb.from('products').select('*').order('position', {ascending:true})),
+        safe(sb.from('categories').select('*').order('position', {ascending:true})),
+        safe(sb.from('modifiers').select('*')),
+        safe(sb.from('discounts').select('*')),
+        safe(sb.from('customers').select('*')),
+        safe(sb.from('app_users').select('*')),
+        safe(sb.from('branches').select('*')),
+        safe(sb.from('parked_orders').select('*').order('created_at', {ascending:false})),
+        safe(sb.from('app_settings').select('*').eq('id',1).maybeSingle()),
+        safe(sb.from('orders').select('*').order('created_at', {ascending:false}).limit(100)),
+        safe(sb.from('inventory').select('*').order('cat', {ascending:true})),
       ]);
 
       // PRODUCTS

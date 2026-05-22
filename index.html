@@ -1118,6 +1118,17 @@ body.drawer-open .od-backdrop {
 .sheet-overlay.open { display: block; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* Modales custom (sucursales, inventario, caja) */
+.lf-modal-ov {
+  position: fixed !important; inset: 0 !important;
+  background: rgba(20,10,15,0.6);
+  z-index: 99999 !important;
+  display: flex !important;
+  align-items: center; justify-content: center;
+  padding: var(--sp-4);
+  animation: fadeIn var(--dur-sm);
+}
+
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0;
   z-index: var(--z-sheet);
@@ -7290,7 +7301,7 @@ function openMovModal(type){
   if(ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'ov-mov';
-  ov.className = 'overlay open';
+  ov.className = 'lf-modal-ov';
   ov.innerHTML = `
     <div class="sheet open" style="max-width:420px;margin:auto;height:auto;max-height:80vh;border-radius:var(--r-lg);">
       <div class="sheet-header"><div class="sheet-title-wrap"><div class="sheet-title">${title}</div></div><button class="sheet-back" onclick="document.getElementById('ov-mov').remove()">×</button></div>
@@ -7334,7 +7345,7 @@ function openAperturaModal(){
   if(ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'ov-apertura';
-  ov.className = 'overlay open';
+  ov.className = 'lf-modal-ov';
   ov.innerHTML = `
     <div class="sheet open" style="max-width:420px;margin:auto;height:auto;max-height:80vh;border-radius:var(--r-lg);">
       <div class="sheet-header"><div class="sheet-title-wrap"><div class="sheet-title">${c.apertura ? 'Editar fondo' : 'Abrir turno'}</div><div class="sheet-sub">Efectivo con el que arranca la caja</div></div><button class="sheet-back" onclick="document.getElementById('ov-apertura').remove()">×</button></div>
@@ -9446,7 +9457,7 @@ function openBranchEditor(id){
   if(ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'ov-branch';
-  ov.className = 'overlay open';
+  ov.className = 'lf-modal-ov';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
   ov.innerHTML = `
     <div style="background:var(--surface);border-radius:24px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;padding:var(--sp-5);box-shadow:var(--shadow-3);">
@@ -11156,7 +11167,7 @@ function openMermaModal(){
   if(ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'ov-merma';
-  ov.className = 'overlay open';
+  ov.className = 'lf-modal-ov';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
   ov.innerHTML = `
     <div style="background:var(--surface);border-radius:24px;max-width:420px;width:100%;padding:var(--sp-5);box-shadow:var(--shadow-3);">
@@ -11221,7 +11232,7 @@ function openEntradaModal(){
   if(ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'ov-entrada';
-  ov.className = 'overlay open';
+  ov.className = 'lf-modal-ov';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
   ov.innerHTML = `
     <div style="background:var(--surface);border-radius:24px;max-width:420px;width:100%;padding:var(--sp-5);box-shadow:var(--shadow-3);">
@@ -11295,7 +11306,7 @@ function openInvDetail(sku){
   if(ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'ov-inv';
-  ov.className = 'overlay open';
+  ov.className = 'lf-modal-ov';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
   window._invDraft = { ...i };
 
@@ -11387,7 +11398,7 @@ function openNewInvItem(){
   if(ov) ov.remove();
   ov = document.createElement('div');
   ov.id = 'ov-inv-new';
-  ov.className = 'overlay open';
+  ov.className = 'lf-modal-ov';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,10,15,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--sp-4);';
   // Categorías únicas que ya existen
   const cats = [...new Set(INV_MOCK.map(i => i.cat).filter(c => c))];
@@ -12550,6 +12561,20 @@ loadAll();
 if(typeof renderProducts === 'function') renderProducts();
 if(typeof renderCats === 'function') renderCats();
 if(typeof renderLoginChips === 'function') renderLoginChips();
+
+// ── EXPONER funciones de inventario y sucursales en window ──
+// Esto garantiza que onclick="openInvDetail(...)" funciona aunque por
+// alguna razón el scope global no las recoja automáticamente.
+['openInvDetail','saveInvItem','deleteInvItem','openNewInvItem','saveNewInvItem','invAdjQty',
+ 'openMermaModal','confirmMerma','openEntradaModal','confirmEntrada',
+ 'openBranchEditor','saveBranch','deleteBranch','openBranchReport',
+ 'openAperturaModal','saveApertura','openMovModal','saveMov',
+ 'refreshCajaUI','renderInvList','renderLoginChips',
+ 'ajSetText','updateBranchField'
+].forEach(fn => {
+  try { if(typeof eval(fn) === 'function') window[fn] = eval(fn); } catch(e){}
+});
+console.log('[LF-POS] Funciones expuestas:', Object.keys(window).filter(k => /^(open|save|delete|render|refresh|aj)/.test(k)).length);
 </script>
 
 <!-- ═════════════════════ SUPABASE SYNC ═════════════════════ -->
