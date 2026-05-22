@@ -200,16 +200,22 @@ begin
   begin alter publication supabase_realtime add table public.parked_orders; exception when duplicate_object then null; end;
 end$$;
 
+-- REPLICA IDENTITY FULL hace que los eventos UPDATE incluyan todos los campos del row,
+-- no solo el id. Necesario para que cambios de status/refund se propaguen correctamente.
+alter table public.orders replica identity full;
+alter table public.products replica identity full;
+alter table public.customers replica identity full;
+alter table public.parked_orders replica identity full;
+
 -- ----------------------------------------
 -- 5) SEED INICIAL
 -- ----------------------------------------
 
--- Sucursales
+-- Sucursales (sucursales reales de Lady Fresa)
 insert into public.branches (id, name, emoji, class, addr, tel, hours, principal, status)
 values
-  ('centro', 'Centro', '🌸', 'c1', 'Av. Reforma 134 · Col. Centro', '55 1234 5678', '11:00 - 22:00', true, 'open'),
-  ('polanco', 'Polanco', '🥤', 'c2', 'Masaryk 312 · Polanco', '55 5544 9012', '10:00 - 23:00', false, 'open'),
-  ('roma', 'Roma Norte', '🍓', 'c3', 'Alvaro Obregon 88 · Roma Nte.', '55 7788 3344', '12:00 - 23:30', false, 'open')
+  ('balbuena', 'Balbuena', '🌸', 'c1', 'Balbuena · CDMX', '', '11:00 - 22:00', true, 'open'),
+  ('delvalle', 'Del Valle', '🍓', 'c2', 'Del Valle · CDMX', '', '11:00 - 22:00', false, 'open')
 on conflict (id) do nothing;
 
 -- Categorias
@@ -247,9 +253,9 @@ on conflict (id) do nothing;
 -- Modificadores
 insert into public.modifiers (name, required, max_select, label, options) values
   ('Tamaño', true, 1, '', '[{"name":"Chico","extra":0},{"name":"Mediano","extra":36},{"name":"Grande","extra":50}]'::jsonb),
-  ('Bases', true, 1, '', '[{"name":"Crema","extra":0},{"name":"Chococrema","extra":15},{"name":"Caramel cream","extra":20},{"name":"Chocolate","extra":25},{"name":"Caramelo","extra":30}]'::jsonb),
-  ('Toppings Incluidos', false, 3, '3 incluidos', '[{"name":"Oreo","extra":0},{"name":"Coco","extra":0},{"name":"Lechera","extra":0},{"name":"Granola","extra":0}]'::jsonb),
-  ('Extra Premium', false, 5, 'Costo extra', '[{"name":"Lotus","extra":25},{"name":"Ferrero","extra":25},{"name":"KitKat","extra":25},{"name":"Nutella","extra":25}]'::jsonb)
+  ('Bases', true, 1, '', '[{"name":"Crema","extra":0},{"name":"Chococrema","extra":15},{"name":"Caramel cream","extra":20},{"name":"Chocolate","extra":25},{"name":"Caramelo","extra":30},{"name":"Chocolate Blanco","extra":25}]'::jsonb),
+  ('Toppings Incluidos', false, 2, '2 gratis', '[{"name":"Almendra","extra":0},{"name":"Oreo","extra":0},{"name":"Coco","extra":0},{"name":"Choco Chips","extra":0},{"name":"Lechera","extra":0},{"name":"Amaranto","extra":0},{"name":"Mazapán","extra":0},{"name":"M&Ms","extra":0}]'::jsonb),
+  ('Extra Premium', false, 5, '+$25 c/u', '[{"name":"Ferrero","extra":25},{"name":"Pistache","extra":25},{"name":"KitKat","extra":25},{"name":"Lotus","extra":25},{"name":"Dubai","extra":25},{"name":"Nutella","extra":25}]'::jsonb)
 on conflict (name) do nothing;
 
 -- Descuentos demo

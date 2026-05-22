@@ -167,6 +167,7 @@
       if(orders.data && typeof ORDERS_MOCK !== 'undefined'){
         ORDERS_MOCK.length = 0;
         orders.data.forEach(o => ORDERS_MOCK.push({
+          id: o.id, // UUID de Supabase, útil para updates posteriores
           n: o.n, time: o.time,
           items: o.items || [],
           client: o.client || '',
@@ -253,8 +254,16 @@
     await sb.from('customers').upsert([row], {onConflict:'id'});
   }
   async function pushAllCustomers(){
-    if(typeof CLIENTES_MOCK === 'undefined') return;
-    for(const c of CLIENTES_MOCK) await pushCustomer(c);
+    if(typeof CLIENTES_MOCK === 'undefined' || !CLIENTES_MOCK.length) return;
+    // Batch upsert: una sola llamada para todos los clientes
+    const rows = CLIENTES_MOCK.map(c => ({
+      id: c.id, name: c.name, phone: c.phone, pts: c.pts,
+      next: c.next, tier: c.tier, spend: c.spend, orders: c.orders,
+      last: c.last, vip: c.vip, bday: c.bday, since: c.since,
+      note: c.note, favs: c.favs || [],
+    }));
+    const { error } = await sb.from('customers').upsert(rows, {onConflict:'id'});
+    if(error) console.error('[LF-Sync] customers batch:', error);
   }
 
   async function pushUsers(){
@@ -264,6 +273,35 @@
       rol: u.rol, emoji: u.emoji, color: u.color, active: true,
     }));
     await sb.from('app_users').upsert(rows, {onConflict:'pin'});
+  }
+
+  // ── COLA OFFLINE para órdenes que no pudieron subir ───────────
+  const PENDING_KEY = 'lf_pending_orders';
+  function getPending(){
+    try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch { return []; }
+  }
+  function setPending(arr){
+    try { localStorage.setItem(PENDING_KEY, JSON.stringify(arr)); } catch {}
+  }
+  function queuePendingOrder(row){
+    const q = getPending();
+    q.push({ ...row, queued_at: Date.now() });
+    setPending(q);
+  }
+  async function flushPendingOrders(){
+    const q = getPending();
+    if(!q.length) return;
+    const remaining = [];
+    for(const row of q){
+      const { queued_at, ...payload } = row;
+      const { error } = await sb.from('orders').insert([payload]);
+      if(error){ remaining.push(row); }
+    }
+    setPending(remaining);
+    if(q.length > remaining.length){
+      const subidas = q.length - remaining.length;
+      if(typeof showToast === 'function') showToast(`${subidas} venta(s) sincronizada(s) ✓`, 0, '☁️');
+    }
   }
 
   async function pushOrder(o){
@@ -278,25 +316,67 @@
       fee: o.fee || 0,
       total: o.total,
       status: o.status || 'completada',
-      branch_id: typeof currentBranchId !== 'undefined' ? currentBranchId : 'centro',
+      branch_id: typeof currentBranchId !== 'undefined' ? currentBranchId : 'balbuena',
       cashier_pin: (typeof ROLE !== 'undefined' && ROLE.user) ? ROLE.user.pin : null,
     };
-    const { error, data } = await sb.from('orders').insert([row]).select();
-    if(error){ console.error('[LF-Sync] order:', error); return null; }
+    try {
+      const { error, data } = await sb.from('orders').insert([row]).select();
+      if(error){
+        console.error('[LF-Sync] order:', error);
+        // Encolar para reintento
+        queuePendingOrder(row);
+        return null;
+      }
+      // Aprovechar para vaciar la cola si hay pendientes
+      flushPendingOrders();
+      return data?.[0];
+    } catch(err){
+      console.error('[LF-Sync] order (network):', err);
+      queuePendingOrder(row);
+      return null;
+    }
+  }
+
+  // Actualizar una orden existente (típicamente para refunds)
+  async function updateOrder(orderNumber, patch){
+    if(!orderNumber || !patch) return null;
+    const { error, data } = await sb.from('orders')
+      .update(patch)
+      .eq('n', orderNumber)
+      .select();
+    if(error){ console.error('[LF-Sync] updateOrder:', error); return null; }
     return data?.[0];
   }
 
   async function pushParked(){
     if(typeof parked === 'undefined') return;
-    // Reemplaza todo el set
-    await sb.from('parked_orders').delete().neq('id','00000000-0000-0000-0000-000000000000');
+    // Estrategia: upsert los actuales, luego borrar los que el servidor tiene pero local ya no
+    const localIds = parked.filter(p => p.id).map(p => p.id);
+
     if(parked.length){
       const rows = parked.map(p => ({
+        // Si tiene id (uuid de Supabase) lo respetamos, si no Postgres genera uno
+        ...(p.id ? {id: p.id} : {}),
         label: p.label, items: p.items,
         client: p.client || '', svc: p.svc,
-        branch_id: typeof currentBranchId !== 'undefined' ? currentBranchId : 'centro',
+        branch_id: typeof currentBranchId !== 'undefined' ? currentBranchId : 'balbuena',
       }));
-      await sb.from('parked_orders').insert(rows);
+      const { error } = await sb.from('parked_orders').upsert(rows, {onConflict:'id'});
+      if(error) console.error('[LF-Sync] parked upsert:', error);
+    }
+
+    // Borrar de Supabase los que ya no están en local (de esta sucursal)
+    const branchId = typeof currentBranchId !== 'undefined' ? currentBranchId : 'balbuena';
+    if(localIds.length){
+      // Borrar todos los que NO están en la lista local
+      const { error } = await sb.from('parked_orders')
+        .delete()
+        .eq('branch_id', branchId)
+        .not('id', 'in', '(' + localIds.map(id => `"${id}"`).join(',') + ')');
+      if(error) console.error('[LF-Sync] parked cleanup:', error);
+    } else {
+      // No hay ningún parked local: borrar todos los de esta sucursal
+      await sb.from('parked_orders').delete().eq('branch_id', branchId);
     }
   }
 
@@ -316,24 +396,37 @@
     pushAllCustomers: debounce(pushAllCustomers, 1200),
     pushUsers: debounce(pushUsers, 800),
     pushOrder, // se llama inmediato al cerrar venta
+    updateOrder, // para refunds y cambios de status — inmediato
     pushParked: debounce(pushParked, 600),
     pushSettings: debounce(pushSettings, 1000),
+    flushPendingOrders, // intenta subir órdenes encoladas
+    pendingCount: () => getPending().length,
     status: showSyncStatus,
   };
 
+  // Cuando vuelve la conexión, vaciar la cola
+  window.addEventListener('online', () => {
+    showSyncStatus('Conexión restablecida · sincronizando…', 'sync');
+    flushPendingOrders().then(() => loadFromSupabase());
+  });
+  window.addEventListener('offline', () => {
+    showSyncStatus('Sin conexión · modo offline', 'offline');
+  });
+
   // ── REALTIME: escuchar cambios en otros dispositivos ──────────
   function setupRealtime(){
-    sb.channel('lf-orders').on('postgres_changes',
+    // INSERT de ordenes: nueva venta en otro dispositivo
+    sb.channel('lf-orders-ins').on('postgres_changes',
       { event:'INSERT', schema:'public', table:'orders' },
       (payload) => {
         const o = payload.new;
         if(!o) return;
-        // Añadir al ORDERS_MOCK si existe (al principio)
         if(typeof ORDERS_MOCK !== 'undefined'){
           // Evitar duplicar (puede que ya esté si la venta fue local)
-          const exists = ORDERS_MOCK.find(x => x.n === o.n && x.time === o.time);
+          const exists = ORDERS_MOCK.find(x => (x.id && x.id === o.id) || (x.n === o.n && x.time === o.time));
           if(!exists){
             ORDERS_MOCK.unshift({
+              id: o.id,
               n: o.n, time: o.time,
               items: o.items || [],
               client: o.client || '',
@@ -342,14 +435,33 @@
               status: o.status,
               refund: o.refund || null,
             });
-            // Si el historial está abierto, re-render
             if(typeof renderHistList === 'function' && document.querySelector('#screen-historial.active')){
               renderHistList();
             }
+            if(typeof showToast === 'function'){
+              showToast('Nueva venta · #' + o.n + ' · $' + o.total, 0, '🛎️');
+            }
           }
         }
-        if(typeof showToast === 'function'){
-          showToast('Nueva venta · #' + o.n + ' · $' + o.total, 0, '🛎️');
+      }
+    ).subscribe();
+
+    // UPDATE de ordenes: refund o cambio de status hecho en otro dispositivo
+    sb.channel('lf-orders-upd').on('postgres_changes',
+      { event:'UPDATE', schema:'public', table:'orders' },
+      (payload) => {
+        const o = payload.new;
+        if(!o || typeof ORDERS_MOCK === 'undefined') return;
+        const local = ORDERS_MOCK.find(x => (x.id && x.id === o.id) || x.n === o.n);
+        if(local){
+          local.status = o.status;
+          local.refund = o.refund || null;
+          if(typeof renderHistList === 'function' && document.querySelector('#screen-historial.active')){
+            renderHistList();
+          }
+          if(o.status === 'reembolsada' && typeof showToast === 'function'){
+            showToast('Orden #' + o.n + ' reembolsada', 0, '↩');
+          }
         }
       }
     ).subscribe();
@@ -404,14 +516,17 @@
   }
 
   // ── INIT ──────────────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', async () => {
+  async function init(){
     await loadFromSupabase();
     setupRealtime();
-  });
+    // Intentar subir órdenes encoladas (si quedaron de una sesión anterior offline)
+    flushPendingOrders();
+  }
 
+  document.addEventListener('DOMContentLoaded', init);
   // Si ya está cargado el DOM:
   if(document.readyState !== 'loading'){
-    loadFromSupabase().then(setupRealtime);
+    init();
   }
 
 })();

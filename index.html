@@ -6196,8 +6196,22 @@ function pinQuick(p){ pinBuffer = p; updateDots(); vibrate(15); setTimeout(pinEn
 function updateDots(){ for(let i=0;i<4;i++) $('#pd'+i).classList.toggle('filled', i<pinBuffer.length); }
 function pinEnter(){
   if(pinBuffer.length<4) return;
-  // Buscar usuario por PIN. Si no existe, usar el primer cajero como demo (cualquier PIN entra como cajero).
-  const user = USUARIOS.find(u => u.pin === pinBuffer) || { pin:pinBuffer, nombre:'Cajera', alias:'Cajera', rol:'cajero', emoji:'🍓', color:'#E67A8A' };
+  const user = USUARIOS.find(u => u.pin === pinBuffer);
+  if(!user){
+    // PIN desconocido — rechazar
+    vibrate([60, 40, 60]);
+    pinBuffer = '';
+    updateDots();
+    // Animación de error en los dots
+    const dots = $('#pin-dots');
+    if(dots){
+      dots.style.animation = 'none';
+      void dots.offsetWidth; // restart animation
+      dots.style.animation = 'shake 0.4s';
+    }
+    if(typeof showToast === 'function') showToast('PIN incorrecto', 0, '⚠️');
+    return;
+  }
   setActiveUser(user);
   $('#screen-login').classList.remove('active');
   $('#screen-pos').classList.add('active');
@@ -7072,30 +7086,62 @@ function confirmarPago(){
   const total = orderFinal().total;
   const cambio = payMethod==='efectivo' ? efecAmount - total : 0;
 
+  // Calcular detalle de venta (subtotal sin IVA + IVA + fee delivery)
+  const final = orderFinal();
+  const fee = (svcType === 'delivery' && typeof DELIVERY !== 'undefined' && DELIVERY.fee) ? DELIVERY.fee : 0;
+  // gross = lo que el cliente paga sin propina (con IVA incluido). El IVA se calcula 16% del gross.
+  const grossWithIva = final.afterDisc + fee;
+  const ivaAmount = Math.round(grossWithIva - grossWithIva / 1.16);
+  const subtotalSinIva = grossWithIva - ivaAmount;
+
+  // Añadir al historial LOCAL de inmediato (para que el cajero la vea sin esperar)
+  const orderRecord = {
+    n: String(orderN).padStart(3,'0'),
+    time: new Date().toTimeString().slice(0,5),
+    items: order.map(it => ({
+      name: it.name, qty: it.qty, price: it.unitPrice, emoji: it.emoji,
+      mods: (it.tags||[]).map(t => `${t.name}${t.extra>0?' +$'+t.extra:''}`),
+      note: it.note || '',
+    })),
+    client: currentClub ? currentClub.name : '',
+    svc: svcType,
+    pay: payMethod,
+    total: final.total,
+    status: 'completada',
+    refund: null,
+  };
+  if(typeof ORDERS_MOCK !== 'undefined'){
+    ORDERS_MOCK.unshift(orderRecord);
+  }
+
   // Push venta a Supabase (si hay sync)
   try {
     if(window.LFSync && window.LFSync.pushOrder){
-      const final = orderFinal();
       const orderData = {
-        n: String(orderN).padStart(3,'0'),
-        time: new Date().toTimeString().slice(0,5),
-        items: order.map(it => ({
-          name: it.name, qty: it.qty, price: it.unitPrice, emoji: it.emoji,
-          mods: (it.tags||[]).map(t => `${t.name}${t.extra>0?' +$'+t.extra:''}`),
-          note: it.note || '',
-        })),
-        client: currentClub ? currentClub.name : '',
+        n: orderRecord.n,
+        time: orderRecord.time,
+        items: orderRecord.items,
+        client: orderRecord.client,
         svc: svcType,
         pay: payMethod,
-        subtotal: Math.round(final.gross - final.iva),
-        discount: typeof discountAmount === 'function' ? discountAmount(final.subtotal) : 0,
-        iva: final.iva,
-        fee: (svcType === 'delivery' && typeof DELIVERY !== 'undefined' && DELIVERY.fee) ? DELIVERY.fee : 0,
+        subtotal: subtotalSinIva,
+        discount: final.disc || 0,
+        iva: ivaAmount,
+        fee: fee,
         total: final.total,
         status: 'completada',
       };
       window.LFSync.pushOrder(orderData).then(saved => {
-        if(saved && typeof showToast === 'function') showToast('Venta guardada en la nube ✓', 0, '☁️');
+        if(saved){
+          // Reemplazar el id local con el de Supabase si vino
+          if(saved.id) orderRecord.id = saved.id;
+          if(typeof showToast === 'function') showToast('Venta guardada en la nube ✓', 0, '☁️');
+        } else {
+          if(typeof showToast === 'function') showToast('Venta guardada localmente · pendiente subir', 0, '📥');
+        }
+      }).catch(err => {
+        console.warn('Push order error:', err);
+        if(typeof showToast === 'function') showToast('Venta guardada localmente · pendiente subir', 0, '📥');
       });
     }
   } catch(e){ console.warn('Push order error:', e); }
@@ -8944,17 +8990,12 @@ let currentClub = null;
 
 /* ─── BRANCHES (multi-sucursal) ─── */
 const BRANCHES = [
-  { id:'centro', emoji:'🌸', class:'c1', name:'Centro', addr:'Av. Reforma 134 · Col. Centro', tel:'55 1234 5678', hours:'11:00 – 22:00', principal:true, status:'open',
-    today:6820, ordenesHoy:47, ticket:145, vsAyer:8, semana:42180, clubActivos:87,
-    top:[{n:'La Pistachona',q:18},{n:'Fresas Mediano',q:14},{n:'La Lady Lover',q:11}] },
-  { id:'polanco', emoji:'🥤', class:'c2', name:'Polanco', addr:'Masaryk 312 · Polanco', tel:'55 5544 9012', hours:'10:00 – 23:00', principal:false, status:'open',
-    today:9240, ordenesHoy:62, ticket:149, vsAyer:14, semana:58200, clubActivos:142,
-    top:[{n:'La Lady Lover',q:24},{n:'Fresas Grande',q:19},{n:'La Cookie Lover',q:13}] },
-  { id:'roma', emoji:'🍓', class:'c3', name:'Roma Norte', addr:'Álvaro Obregón 88 · Roma Nte.', tel:'55 7788 3344', hours:'12:00 – 23:30', principal:false, status:'open',
-    today:5410, ordenesHoy:38, ticket:142, vsAyer:-3, semana:34800, clubActivos:64,
-    top:[{n:'La Pistachona',q:15},{n:'Fresas Chico',q:12},{n:'Limonada de fresa',q:9}] },
+  { id:'balbuena', emoji:'🌸', class:'c1', name:'Balbuena', addr:'Balbuena · CDMX', tel:'', hours:'11:00 – 22:00', principal:true, status:'open',
+    today:0, ordenesHoy:0, ticket:0, vsAyer:0, semana:0, clubActivos:0, top:[] },
+  { id:'delvalle', emoji:'🍓', class:'c2', name:'Del Valle', addr:'Del Valle · CDMX', tel:'', hours:'11:00 – 22:00', principal:false, status:'open',
+    today:0, ordenesHoy:0, ticket:0, vsAyer:0, semana:0, clubActivos:0, top:[] },
 ];
-let currentBranchId = 'centro';
+let currentBranchId = 'balbuena';
 function getBranch(id){ return BRANCHES.find(b => b.id === (id || currentBranchId)) || BRANCHES[0]; }
 function openBranchPicker(){
   renderBranchPicker();
@@ -10635,6 +10676,12 @@ function confirmRefund(n, total){
   if(o){
     o.status = 'reembolsada';
     o.refund = { reason: s.reason, time: new Date().toTimeString().slice(0,5), amount };
+    // Push refund a Supabase (si hay sync)
+    try {
+      if(window.LFSync && window.LFSync.updateOrder){
+        window.LFSync.updateOrder(n, { status: 'reembolsada', refund: o.refund });
+      }
+    } catch(e){ console.warn('Push refund error:', e); }
   }
   $('#ov-refund').remove();
   renderHistList();
@@ -11397,6 +11444,9 @@ function persistAll(){
     localStorage.setItem('lf_saved_at', Date.now());
   } catch(e){ console.warn('Persist failed:', e); }
 }
+// Exponer explícitamente para que supabase-sync.js pueda interceptar (no depender del hoisting global)
+window.persistAll = persistAll;
+
 function loadAll(){
   try {
     const load = (key, target) => {
@@ -11430,11 +11480,11 @@ function resetDemo(){
   Object.keys(localStorage).filter(k => k.startsWith('lf_')).forEach(k => localStorage.removeItem(k));
   location.reload();
 }
-// Auto-save cada 3 segundos
-setInterval(persistAll, 3000);
+// Auto-save cada 3 segundos (usa lookup dinámico para que supabase-sync.js pueda interceptar)
+setInterval(() => { if(typeof window.persistAll === 'function') window.persistAll(); }, 3000);
 // Save al cerrar / cambiar pestaña
-window.addEventListener('beforeunload', persistAll);
-window.addEventListener('visibilitychange', () => { if(document.hidden) persistAll(); });
+window.addEventListener('beforeunload', () => { if(typeof window.persistAll === 'function') window.persistAll(); });
+window.addEventListener('visibilitychange', () => { if(document.hidden && typeof window.persistAll === 'function') window.persistAll(); });
 
 // Cargar al inicio (después de que todas las constantes estén definidas)
 loadAll();
