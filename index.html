@@ -4644,15 +4644,15 @@ input, textarea, select, button {
   </div>
   <div class="sheet-footer">
     <div class="pay-row">
-      <button class="pay-btn active" onclick="setPay('efectivo',this)">
+      <button class="pay-btn active" data-pay="efectivo" onclick="setPay('efectivo',this)">
         <span class="pay-icon">💵</span>
         <span class="pay-label">Efectivo</span>
       </button>
-      <button class="pay-btn" onclick="setPay('tarjeta',this)">
+      <button class="pay-btn" data-pay="tarjeta" onclick="setPay('tarjeta',this)">
         <span class="pay-icon">💳</span>
         <span class="pay-label">Tarjeta</span>
       </button>
-      <button class="pay-btn" onclick="setPay('transfer',this)">
+      <button class="pay-btn" data-pay="transfer" onclick="setPay('transfer',this)">
         <span class="pay-icon">📲</span>
         <span class="pay-label">Transfer.</span>
       </button>
@@ -4679,6 +4679,26 @@ input, textarea, select, button {
     <div class="cobro-sub">TOTAL A COBRAR</div>
     <div class="cobro-total" id="cobro-total">$0</div>
     <div class="cobro-breakdown" id="cobro-breakdown"></div>
+
+    <div class="cobro-section">
+      <div class="cobro-section-h">
+        <span>💳 Método de pago</span>
+      </div>
+      <div class="pay-row" id="cobro-pay-row">
+        <button class="pay-btn active" data-pay="efectivo" onclick="setPay('efectivo',this);refreshCobroTotals()">
+          <span class="pay-icon">💵</span>
+          <span class="pay-label">Efectivo</span>
+        </button>
+        <button class="pay-btn" data-pay="tarjeta" onclick="setPay('tarjeta',this);refreshCobroTotals()">
+          <span class="pay-icon">💳</span>
+          <span class="pay-label">Tarjeta</span>
+        </button>
+        <button class="pay-btn" data-pay="transfer" onclick="setPay('transfer',this);refreshCobroTotals()">
+          <span class="pay-icon">📲</span>
+          <span class="pay-label">Transfer.</span>
+        </button>
+      </div>
+    </div>
 
     <div class="cobro-section">
       <div class="cobro-section-h">
@@ -7049,8 +7069,32 @@ function saveDelivery(){
 
 function setPay(method, btn){
   payMethod = method;
-  $$('.pay-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  // Sincronizar TODOS los botones de pago (tanto del order sheet como del cobro sheet)
+  document.querySelectorAll('.pay-btn').forEach(b => {
+    const isActive = b.getAttribute('data-pay') === method ||
+                     (b.getAttribute('onclick') && b.getAttribute('onclick').includes(`setPay('${method}'`));
+    b.classList.toggle('active', isActive);
+  });
+  // Si el sheet de cobro está abierto, actualizar también la sección de efectivo
+  const efecSec = $('#efec-section');
+  const confirmBtn = $('#confirmar-btn');
+  if(efecSec && confirmBtn){
+    if(method !== 'efectivo'){
+      efecSec.style.display = 'none';
+      confirmBtn.disabled = false;
+      // En tarjeta / transfer no hay cambio
+      $('#cambio-box')?.classList.add('hidden');
+    } else {
+      efecSec.style.display = 'block';
+      // Si efec aún no llega al total, deshabilitar
+      const total = orderFinal().total;
+      confirmBtn.disabled = efecAmount < total;
+    }
+  }
+  // Actualizar label del header
+  const lbl = $('#cobro-method-label');
+  if(lbl) lbl.textContent = method==='efectivo' ? 'Efectivo' : method==='tarjeta' ? 'Tarjeta' : 'Transferencia';
+  vibrate(8);
 }
 
 /* ─── COBRO / NUMPAD ─── */
@@ -8661,23 +8705,38 @@ function renderHistList(){
 function selectHistOrder(n, btn){
   HIST.selected = n;
   const o = ORDERS_MOCK.find(x=>x.n===n);
+  if(!o) return;
   document.querySelectorAll('.ho-row').forEach(r=>r.classList.remove('active'));
   if(btn) btn.classList.add('active');
   const sub = Math.round(o.total/1.16);
   const iva = o.total - sub;
-  const svcLabel = {mostrador:'Mostrador', llevar:'Para llevar', delivery:'Delivery'}[o.svc];
-  const payLabel = {efectivo:'Efectivo', tarjeta:'Tarjeta', transfer:'Transferencia'}[o.pay];
+  const svcLabel = {mostrador:'Mostrador', llevar:'Para llevar', delivery:'Delivery'}[o.svc] || o.svc || '—';
+  const payLabel = {efectivo:'💵 Efectivo', tarjeta:'💳 Tarjeta', transfer:'📲 Transferencia'}[o.pay] || o.pay || '—';
+  // Cajero real desde cashier_pin
+  let cajeroLabel = '—';
+  if(o.cashier_pin && typeof USUARIOS !== 'undefined'){
+    const u = USUARIOS.find(x => x.pin === o.cashier_pin);
+    if(u) cajeroLabel = `${u.emoji||''} ${u.alias || u.nombre || '—'}`.trim();
+  }
+  // Sucursal real desde branch_id
+  let branchLabel = '—';
+  if(o.branch_id && typeof BRANCHES !== 'undefined'){
+    const b = BRANCHES.find(x => x.id === o.branch_id);
+    if(b) branchLabel = `${b.emoji||''} ${b.name}`.trim();
+  }
   const statusBanner = o.status==='reembolsada'
-    ? `<div style="padding:var(--sp-3);background:var(--warning-soft);color:var(--warning);border-radius:var(--r-md);margin-bottom:var(--sp-3);font-size:var(--fs-caption);"><strong>↩ Reembolsada ${o.refund.time}</strong><br>${o.refund.reason}</div>`
+    ? `<div style="padding:var(--sp-3);background:var(--warning-soft);color:var(--warning);border-radius:var(--r-md);margin-bottom:var(--sp-3);font-size:var(--fs-caption);"><strong>↩ Reembolsada ${o.refund?.time||''}</strong><br>${sanitize(o.refund?.reason||'')}${o.refund?.amount?'<br>Monto: $'+o.refund.amount:''}</div>`
     : o.status==='cancelada'
     ? `<div style="padding:var(--sp-3);background:var(--ink-100);color:var(--ink-500);border-radius:var(--r-md);margin-bottom:var(--sp-3);font-size:var(--fs-caption);"><strong>✗ Cancelada antes de cobrar</strong></div>`
     : '';
   const statusText = {completada:'✓ Completada',reembolsada:'↩ Reembolsada',cancelada:'✗ Cancelada'}[o.status];
+  const isMobile = window.matchMedia('(max-width: 900px)').matches;
   $('#hist-detail').innerHTML = `
-    <div class="hd-head">
+    ${isMobile ? `<button onclick="closeHistDetail()" style="position:sticky;top:0;background:var(--surface);border:none;padding:var(--sp-3) var(--sp-4);font-size:14px;color:var(--ink-700);cursor:pointer;display:flex;align-items:center;gap:8px;width:100%;text-align:left;border-bottom:1px solid var(--border);z-index:2;font-weight:600;">‹ Volver al historial</button>` : ''}
+    <div class="hd-head" style="${isMobile ? 'padding-top:var(--sp-4);' : ''}">
       <div>
         <div class="hd-title">Orden #${o.n}</div>
-        <div class="hd-sub">${o.time} · ${o.client || 'Sin nombre'}</div>
+        <div class="hd-sub">${o.time || ''} · ${sanitize(o.client || 'Sin nombre')}</div>
       </div>
       <span class="ho-status ${o.status}" style="font-size:11px;">${statusText}</span>
     </div>
@@ -8685,27 +8744,30 @@ function selectHistOrder(n, btn){
     <div class="hd-meta-grid">
       <div class="hd-meta"><div class="hd-meta-k">Servicio</div><div class="hd-meta-v">${svcLabel}</div></div>
       <div class="hd-meta"><div class="hd-meta-k">Pago</div><div class="hd-meta-v">${payLabel}</div></div>
-      <div class="hd-meta"><div class="hd-meta-k">Cajero</div><div class="hd-meta-v">Ana</div></div>
-      <div class="hd-meta"><div class="hd-meta-k">Sucursal</div><div class="hd-meta-v">Centro</div></div>
+      <div class="hd-meta"><div class="hd-meta-k">Cajero</div><div class="hd-meta-v">${sanitize(cajeroLabel)}</div></div>
+      <div class="hd-meta"><div class="hd-meta-k">Sucursal</div><div class="hd-meta-v">${sanitize(branchLabel)}</div></div>
     </div>
-    <div class="mod-label">Productos (${o.items.reduce((s,i)=>s+i.qty,0)})</div>
+    <div class="mod-label">Productos (${o.items.reduce((s,i)=>s+(i.qty||1),0)})</div>
     <div class="hd-items">
       ${o.items.map(i=>`
         <div class="hd-item">
-          <div class="hd-item-tile">${i.emoji}</div>
+          <div class="hd-item-tile">${i.emoji||'🍓'}</div>
           <div class="hd-item-body">
-            <div class="hd-item-name">${i.name}</div>
-            ${i.mods.length?`<div class="hd-item-mods">${i.mods.join(' · ')}</div>`:''}
+            <div class="hd-item-name">${sanitize(i.name)}</div>
+            ${(i.mods && i.mods.length)?`<div class="hd-item-mods">${i.mods.map(m=>sanitize(m)).join(' · ')}</div>`:''}
+            ${i.note?`<div class="hd-item-mods" style="color:var(--ink-700);font-style:italic;">📝 ${sanitize(i.note)}</div>`:''}
           </div>
           <div class="hd-item-right">
-            <div class="hd-item-qty">×${i.qty}</div>
-            <div class="hd-item-price">$${i.price*i.qty}</div>
+            <div class="hd-item-qty">×${i.qty||1}</div>
+            <div class="hd-item-price">$${(i.price||0)*(i.qty||1)}</div>
           </div>
         </div>`).join('')}
     </div>
     <div class="hd-totals">
-      <div class="hd-tot-row"><span>Subtotal</span><span>$${sub}</span></div>
-      <div class="hd-tot-row"><span>IVA (16%)</span><span>$${iva}</span></div>
+      ${o.discount > 0 ? `<div class="hd-tot-row"><span>Descuento</span><span style="color:var(--brand-red)">−$${o.discount}</span></div>` : ''}
+      ${o.fee > 0 ? `<div class="hd-tot-row"><span>Envío</span><span>+$${o.fee}</span></div>` : ''}
+      <div class="hd-tot-row"><span>Subtotal</span><span>$${o.subtotal || sub}</span></div>
+      <div class="hd-tot-row"><span>IVA (16%)</span><span>$${o.iva || iva}</span></div>
       <div class="hd-tot-row grand"><span>Total</span><span>$${o.total}</span></div>
     </div>
     <div class="hd-actions">
@@ -8714,6 +8776,17 @@ function selectHistOrder(n, btn){
       <button class="btn btn-secondary" onclick="duplicateOrder('${o.n}')">📋 Duplicar al POS</button>
       ${o.status==='completada' ? `<button class="btn btn-secondary" onclick="openRefundSheet('${o.n}')" style="color:var(--brand-red);border-color:var(--brand-red);">↩ Reembolsar</button>` : '<button class="btn btn-secondary" disabled style="opacity:0.4;">↩ Reembolsar</button>'}
     </div>`;
+  // En móvil: abrir como overlay
+  if(isMobile){
+    $('#hist-detail').classList.add('mobile-open');
+    document.body.style.overflow = 'hidden';
+  }
+}
+function closeHistDetail(){
+  const el = $('#hist-detail');
+  if(el) el.classList.remove('mobile-open');
+  document.body.style.overflow = '';
+  document.querySelectorAll('.ho-row').forEach(r => r.classList.remove('active'));
 }
 
 /* ─── CLIENTES ─── */
@@ -8911,9 +8984,21 @@ function renderCliList(){
 function selectCli(id, btn){
   CLI.selected = id;
   const c = CLIENTES_MOCK.find(x=>x.id===id);
+  if(!c) return;
   document.querySelectorAll('.cli-row').forEach(r=>r.classList.remove('active'));
   if(btn) btn.classList.add('active');
   renderClientDetail(c);
+  // En móvil: abrir como overlay
+  if(window.matchMedia('(max-width: 900px)').matches){
+    $('#cli-detail').classList.add('mobile-open');
+    document.body.style.overflow = 'hidden';
+  }
+}
+function closeCliDetail(){
+  const el = $('#cli-detail');
+  if(el) el.classList.remove('mobile-open');
+  document.body.style.overflow = '';
+  document.querySelectorAll('.cli-row').forEach(r => r.classList.remove('active'));
 }
 function renderClientDetail(c){
   const progress = Math.min(100, (c.pts/c.next)*100);
@@ -8984,7 +9069,9 @@ function renderClientDetail(c){
   }
   const maxSpend = Math.max(1, ...spendByMonth);
 
+  const isMobile = window.matchMedia('(max-width: 900px)').matches;
   $('#cli-detail').innerHTML = `
+    ${isMobile ? `<button onclick="closeCliDetail()" style="position:sticky;top:0;background:var(--surface);border:none;padding:var(--sp-3) var(--sp-4);font-size:14px;color:var(--ink-700);cursor:pointer;display:flex;align-items:center;gap:8px;width:100%;text-align:left;border-bottom:1px solid var(--border);z-index:2;font-weight:600;">‹ Volver a clientes</button>` : ''}
     <!-- HERO -->
     <div class="clid-hero ${c.vip?'vip':''}" style="--tier-c:${t.c};">
       <div class="clid-hero-top">
