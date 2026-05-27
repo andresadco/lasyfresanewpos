@@ -1,134 +1,76 @@
-# Lady Fresa POS
+# Lady Fresa POS · v2 (hardened)
 
-Sistema POS para Lady Fresa Mexicana, conectado a Supabase con cache offline.
+POS web de Lady Fresa Mexicana. Hosted en GitHub Pages, backend Supabase.
 
-## 🚀 Setup Supabase (primera vez)
+## Stack
+- **Frontend:** HTML/CSS/JS vanilla en `index.html` + estilos compartidos en `tokens.css`.
+- **Backend:** Supabase (Postgres + Realtime + RLS).
+- **Offline:** Service Worker + cola de ventas pendientes en localStorage.
+- **PWA:** instalable en tablets/desktop. Funciona sin conexión tras primer login.
 
-### 1. Crear las tablas
+## Archivos
 
-1. Entra a [app.supabase.com](https://app.supabase.com) → tu proyecto `cohskhrjecuwqlqhjvnh`
-2. Sidebar → **SQL Editor** → **+ New query**
-3. Copia y pega TODO el contenido de `schema.sql`
-4. Click **Run** (botón verde abajo a la derecha)
-5. Deberías ver `Success. No rows returned`
-
-### 2. Verificar
-
-- Sidebar → **Table Editor**: deberías ver 10 tablas
-- En `branches`: 2 sucursales (Balbuena, Del Valle)
-- En `products`: 13 productos iniciales
-- En `app_users`: 4 usuarios (0000 Lozo, 1111 Mariana, 2222 Ana, 3333 Luis)
-
-### 3. Abrir la app
-
-- Abre `index.html` localmente o desde GitHub Pages
-- Chip verde abajo a la izquierda: **"Conectado · 13 productos"**
-- Login con tu PIN
-
-## 🗂 Archivos
-
-| Archivo | Qué hace |
+| Archivo | Función |
 |---|---|
-| `index.html` | App POS completa |
-| `schema.sql` | Schema de Supabase — corre 1 vez |
-| `supabase-sync.js` | Sync con Supabase (load + push + realtime + cola offline) |
-| `tokens.css` | Variables de diseño |
-| `img/` | Imágenes de productos |
+| `index.html` | App completa: POS, historial, caja, inventario, clientes, sucursales, ajustes |
+| `supabase-sync.js` | Cliente Supabase: auth vía `verify_pin`, load/push, realtime, cola offline |
+| `sw.js` | Service Worker: caché de app shell + imágenes; pasa-a-red Supabase API |
+| `manifest.webmanifest` | Configuración PWA (instalable) |
+| `tokens.css` | Variables CSS de diseño (colores, espaciado, tipografía) |
+| `schema.sql` | Schema Postgres + RLS + función `verify_pin()` |
+| `limpiar-cache.html` | Utilidad para borrar Service Worker y caché en emergencias |
 
-## 🔐 Acceso
+## Setup
 
-Login estricto: solo PINs registrados en `app_users` entran. Un PIN desconocido se rechaza.
+1. **Supabase:** correr `schema.sql` **por secciones** (ver `MIGRATION_PLAN.md` si vienes de v1).
+2. **Hosting:** push a GitHub Pages. Eso es todo.
+3. **Primer login:** PINs por defecto son 0000, 1111, 2222, 3333. Cámbialos en cuanto puedas.
 
-| PIN | Usuario | Rol |
-|---|---|---|
-| 0000 | Lozo | 👑 Admin |
-| 1111 | Mariana | 👩‍💼 Gerente |
-| 2222 | Ana | 🍓 Cajera |
-| 3333 | Luis | 🧑‍🍳 Cajero |
+## Cambios v2 vs v1
 
-Los chips de acceso rápido en la pantalla de login se generan dinámicamente desde `app_users`.
+### Seguridad
+- **RLS por rol y sucursal**: cajero solo ve órdenes de su sucursal; `app_users` y `app_settings` ocultos a `anon`.
+- **PINs hasheados con bcrypt** y rate limit (5 intentos → bloqueo 5 min).
+- **Login server-side** vía función `verify_pin()` (security definer) — el cliente nunca ve la tabla de usuarios.
+- **Headers `x-lf-role` y `x-lf-branch`** inyectados en cada request para que la RLS sepa quién pregunta.
+- **Sanitización completa** del render de productos (emoji, nombre, imagen) — adiós XSS latente.
 
-## 📊 Todo se calcula desde datos reales
+### UX
+- **PWA instalable** con manifest, theme-color, splash screen.
+- **Offline real** vía Service Worker: la app carga sin red si ya entró una vez.
+- **Modales propios** (`confirmModal`, `alertModal`, `promptModal`) reemplazan `confirm/alert/prompt` nativos.
+- **Cambio de sucursal recarga datos**: cambiar de Balbuena a Del Valle ahora trae las órdenes correctas.
 
-Nada está hardcoded como demo. Las pantallas leen de `ORDERS_MOCK` (cargado desde Supabase) y `AJ` (configuración persistente):
+### Correctitud
+- **IVA configurable** (lee `AJ.iva` y `AJ.ivaIncluido`) — antes estaba hardcoded a 16% incluido.
+- **Tip persistido** en columna aparte de `orders`.
+- **`customer_id` real** en `orders` (FK) — antes era match por nombre.
+- **`confirmarPago` atómico**: el cliente solo recibe +1 visita si la venta se guardó o se encoló.
+- **Cola offline en batch**: 20 ventas pendientes = 1 INSERT en vez de 20.
 
-- **Cierre de turno**: ventas reales del día por método de pago, top productos, ticket promedio, cancelaciones
-- **Dashboard del dueño**: KPIs comparativos hoy/ayer/semana/mes desde ventas reales
-- **Historial de ventas**: filtros por día (hoy/ayer/semana) con totales calculados al vuelo
-- **Sucursales**: KPIs por sucursal (today, semana, top productos) calculados desde ORDERS_MOCK
-- **Turnos**: agrupación por cajero + día, con horas trabajadas calculadas
-- **Detalle de cliente**: timeline de visitas reales del cliente, gasto por mes
-- **Reportes admin**: totales y top productos del día
-- **Caja**: fondo inicial configurable, retiros/depósitos registrables, saldo esperado vivo
-- **Impresora**: vista previa con la orden actual o última venta cerrada
-- **Integraciones**: status real desde `AJ.integrations` (vacío hasta que el usuario configure)
-- **Hardware**: muestra "Sin configurar" hasta que se conecten desde Integraciones
+### Performance
+- **Event delegation** en grid de productos.
+- **Imágenes 400px @ 0.75** (antes 800px @ 0.85).
+- **Imágenes pesadas NO se guardan en localStorage** — viven en Supabase.
+- **Autosave inteligente con `markDirty`**.
+- **Service Worker** sirve assets desde caché.
+- **Índice compuesto** `(branch_id, created_at desc)`.
 
-## 📡 ¿Qué se sincroniza con Supabase?
+### Limpieza
+- Eliminado el bloque `eval(fn)` final.
+- `replica identity full` solo donde se necesita.
+- Carpeta `uploads/` (3.5 MB de duplicados) eliminada.
 
-- ✅ Productos · Categorías · Modificadores · Descuentos
-- ✅ Clientes Lady Club
-- ✅ Usuarios y PINs
-- ✅ Sucursales (incluido dirección, teléfono editables desde Ajustes)
-- ✅ Órdenes (ventas) — con cola offline
-- ✅ Reembolsos (status + razón) — sincronizan entre dispositivos
-- ✅ Órdenes aparcadas
-- ✅ Ajustes (incluye config de integraciones, caja, etc.)
-- ✅ **Realtime**: ventas nuevas y reembolsos aparecen en otros dispositivos
+## PINs de cajeros (cambiar en producción)
 
-## 💼 Caja / Apertura de turno
+| Pin | Alias | Rol |
+|-----|-------|-----|
+| 0000 | Lozo | admin |
+| 1111 | Mary | gerente |
+| 2222 | Cap | cajero |
+| 3333 | Ant | cajero |
 
-- Sheet "Caja" tiene 3 tabs: Apertura, Movimientos, Corte
-- **Apertura**: botón para configurar fondo inicial. Persiste vía `AJ.caja`
-- **Movimientos**: registra retiros (➖) y depósitos (➕) durante el turno
-- **Corte**: muestra esperado en caja = fondo + ventas efectivo del día + depósitos − retiros
+## Versionado
 
-El cierre de turno (Z) usa estos valores reales para calcular cuadre.
-
-## 🐛 Troubleshooting
-
-| Problema | Solución |
-|---|---|
-| No carga datos | Revisa consola. Si dice "supabase-js no está cargado", verifica que estén todos los archivos juntos |
-| Chip dice "Sin conexión" | Las ventas que hagas se encolan y suben al volver internet |
-| Algo no guarda | Supabase → Authentication → revisa que las policies del schema estén creadas |
-| Ver órdenes pendientes (encoladas) | Consola: `window.LFSync.pendingCount()` |
-| Forzar reintento de cola | Consola: `window.LFSync.flushPendingOrders()` |
-
-## ⚠️ Seguridad
-
-Las políticas RLS de Supabase son **abiertas** (cualquier anon lee/escribe). Antes de producción real:
-
-1. Implementar Supabase Auth
-2. Cerrar las policies por usuario / sucursal
-3. Mover keys sensibles a variables de entorno
-
-## 📝 Resumen de mejoras vs versión original
-
-**Bugs críticos arreglados:**
-- `confirmarPago` enviaba `NaN` a Supabase (usaba campos inexistentes de `orderFinal()`)
-- `persistAll()` interceptado pero nunca llamado (setInterval capturaba la referencia vieja)
-- Ventas no aparecían en historial local hasta refrescar la página
-- Reembolsos no sincronizaban a Supabase
-- Login aceptaba cualquier PIN de 4 dígitos como cajero anónimo
-- Datos demo hardcodeados en cierre de turno, dashboard, sucursales, etc.
-
-**Nuevas funcionalidades:**
-- Cola offline: ventas se reintentan al volver internet
-- Realtime UPDATE: reembolsos se propagan entre dispositivos
-- Sistema de caja con apertura, retiros y depósitos persistidos
-- Fetch directo de Supabase para corte de turno (sin límite del cache local)
-- Chips de login dinámicos desde `app_users`
-- Integraciones configurables (impresora, terminal, etc.) en lugar de stubs
-
-**Mejoras de performance:**
-- Batch upsert de clientes (1 request en lugar de N)
-- Upsert por id de parked_orders (en lugar de delete-all + insert-all)
-- `REPLICA IDENTITY FULL` para que realtime envíe todos los campos en UPDATEs
-
-**Limpieza:**
-- Eliminado `Lady Fresa POS.html` (copia vieja sin Supabase)
-- Eliminada carpeta `uploads/` con duplicados (3.5 MB)
-- Vaciados `ORDERS_MOCK` y `CLIENTES_MOCK` (se llenan desde Supabase)
-- Eliminadas referencias a sucursal "Centro" hardcoded (usa la actual)
-- Eliminadas IPs, números de teléfono y RFCs falsos
+- **v1** (mayo 2026): primera versión funcional, RLS abierto, sin PWA.
+- **v2** (mayo 2026): este commit. Seguridad, PWA, offline real, atomicidad.

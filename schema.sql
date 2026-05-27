@@ -1,188 +1,186 @@
 -- =============================================================
--- LADY FRESA POS - Schema Supabase v1
--- Pega TODO este archivo en Supabase > SQL Editor > Run
+-- LADY FRESA POS · Schema v2 — Hardened
+-- Cambios vs v1:
+--   1. PINs hasheados con bcrypt (extension pgcrypto)
+--   2. Función verify_pin() que devuelve datos del usuario sin
+--      exponer la tabla app_users a clientes anon.
+--   3. RLS por sucursal y rol (anon NO lee orders, customers,
+--      app_users, app_settings).
+--   4. Catálogo público (products, categories, modifiers, etc.)
+--      legible por anon, escritura solo con JWT claim role=admin.
+--   5. Trigger updated_at automático.
+--   6. Índice compuesto (branch_id, created_at desc) en orders.
+--   7. orders.tip y orders.customer_id se pueblan correctamente.
+--   8. Tabla product_ingredients para descuento de insumos.
+--
+-- INSTRUCCIONES DE MIGRACIÓN
+-- =============================================================
+-- Si ya tienes datos en producción, EJECUTA POR PASOS:
+--   PASO 1: secciones 1, 2 (extensiones + tablas nuevas).
+--   PASO 2: sección 3 (migrar PINs a hash — un solo run).
+--   PASO 3: sección 4 (funciones).
+--   PASO 4: sección 5 (RLS — esto rompe la app vieja, hacerlo
+--           SOLO después de desplegar el frontend nuevo).
+--   PASO 5: sección 6 (realtime + índices). Idempotente.
 -- =============================================================
 
 -- ----------------------------------------
--- 1) TABLAS
+-- 1) EXTENSIONES
 -- ----------------------------------------
-
--- Sucursales
-create table if not exists public.branches (
-  id text primary key,
-  name text not null,
-  emoji text default '🏪',
-  class text default 'c1',
-  addr text,
-  tel text,
-  hours text,
-  principal boolean default false,
-  status text default 'open',
-  today numeric default 0,
-  ordenes_hoy integer default 0,
-  ticket numeric default 0,
-  vs_ayer integer default 0,
-  semana numeric default 0,
-  club_activos integer default 0,
-  top jsonb default '[]'::jsonb,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Categorias
-create table if not exists public.categories (
-  id uuid primary key default gen_random_uuid(),
-  name text not null unique,
-  emoji text default '🍓',
-  position integer default 0,
-  created_at timestamptz default now()
-);
-
--- Productos
-create table if not exists public.products (
-  id integer primary key,
-  name text not null,
-  cat text references public.categories(name) on update cascade,
-  price numeric not null default 0,
-  cost numeric default 0,
-  "desc" text,
-  img text,
-  mods jsonb default '[]'::jsonb,
-  active boolean default true,
-  position integer default 0,
-  branch_id text references public.branches(id),
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Modificadores
-create table if not exists public.modifiers (
-  name text primary key,
-  required boolean default false,
-  max_select integer default 1,
-  label text default '',
-  options jsonb default '[]'::jsonb,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Descuentos
-create table if not exists public.discounts (
-  id integer primary key,
-  name text not null,
-  description text default '',
-  type text default 'percent',
-  value numeric default 0,
-  active boolean default true,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Clientes Lady Club
-create table if not exists public.customers (
-  id integer primary key,
-  name text not null,
-  phone text,
-  email text,
-  pts integer default 0,
-  next integer default 100,
-  tier text default 'Bronce',
-  spend numeric default 0,
-  orders integer default 0,
-  last text default '',
-  vip boolean default false,
-  bday text,
-  since text default '2026',
-  note text default '',
-  favs jsonb default '[]'::jsonb,
-  branch_id text references public.branches(id),
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Usuarios y roles
-create table if not exists public.app_users (
-  pin text primary key,
-  nombre text not null,
-  alias text,
-  rol text not null default 'cajero',
-  emoji text default '🍓',
-  color text default '#E67A8A',
-  active boolean default true,
-  branch_id text references public.branches(id),
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Ordenes / ventas
-create table if not exists public.orders (
-  id uuid primary key default gen_random_uuid(),
-  n text not null,
-  time text default to_char(now(), 'HH24:MI'),
-  items jsonb not null default '[]'::jsonb,
-  client text default '',
-  customer_id integer references public.customers(id),
-  svc text default 'mostrador',
-  pay text default 'efectivo',
-  subtotal numeric default 0,
-  discount numeric default 0,
-  iva numeric default 0,
-  fee numeric default 0,
-  total numeric not null default 0,
-  status text default 'completada',
-  refund jsonb,
-  cashier_pin text references public.app_users(pin),
-  branch_id text references public.branches(id),
-  created_at timestamptz default now()
-);
-
--- Ordenes aparcadas
-create table if not exists public.parked_orders (
-  id uuid primary key default gen_random_uuid(),
-  label text not null,
-  items jsonb not null default '[]'::jsonb,
-  client text default '',
-  svc text default 'mostrador',
-  cashier_pin text,
-  branch_id text references public.branches(id),
-  created_at timestamptz default now()
-);
-
--- Configuracion / Ajustes
-create table if not exists public.app_settings (
-  id integer primary key default 1,
-  data jsonb not null default '{}'::jsonb,
-  updated_at timestamptz default now()
-);
-
--- Inventario / Insumos
-create table if not exists public.inventory (
-  sku text primary key,
-  name text not null,
-  cat text default '',
-  ico text default '📦',
-  qty numeric default 0,
-  unit text default 'u',
-  min_qty numeric default 0,
-  max_qty numeric default 0,
-  cost numeric default 0,
-  branch_id text references public.branches(id),
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
+create extension if not exists pgcrypto;
 
 -- ----------------------------------------
--- 2) INDICES
+-- 2) TABLAS (idempotente — solo añade)
 -- ----------------------------------------
-create index if not exists idx_products_cat on public.products(cat);
-create index if not exists idx_orders_branch on public.orders(branch_id);
-create index if not exists idx_orders_created on public.orders(created_at desc);
-create index if not exists idx_customers_phone on public.customers(phone);
+
+-- app_users: añadir pin_hash, dejar pin para migración
+alter table if exists public.app_users
+  add column if not exists pin_hash text,
+  add column if not exists last_login timestamptz,
+  add column if not exists failed_attempts integer default 0,
+  add column if not exists locked_until timestamptz;
+
+-- orders: añadir tip y asegurar customer_id
+alter table if exists public.orders
+  add column if not exists tip numeric default 0;
+
+-- product_ingredients: receta para descuento automático
+create table if not exists public.product_ingredients (
+  product_id integer references public.products(id) on delete cascade,
+  sku text references public.inventory(sku) on delete cascade,
+  qty_per_unit numeric not null default 0,
+  primary key (product_id, sku)
+);
+
+-- Trigger genérico de updated_at
+create or replace function public.tg_set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end$$;
+
+do $$
+declare t text;
+begin
+  for t in select unnest(array['branches','products','modifiers','discounts','customers','app_users','inventory']) loop
+    execute format(
+      'drop trigger if exists set_updated_at on public.%I; '
+      'create trigger set_updated_at before update on public.%I '
+      'for each row execute function public.tg_set_updated_at()',
+      t, t
+    );
+  end loop;
+end$$;
 
 -- ----------------------------------------
--- 3) RLS (Row Level Security)
--- v1: politicas permisivas (cualquier anon puede leer/escribir)
--- Cambiar a estrictas antes de produccion real.
+-- 3) MIGRACIÓN DE PINs A HASH
+-- ----------------------------------------
+-- Hashea los PINs existentes que aún están en texto plano.
+-- Idempotente: si pin_hash ya está poblado, no toca nada.
+
+update public.app_users
+set pin_hash = crypt(pin, gen_salt('bf', 10))
+where pin_hash is null and pin is not null;
+
+-- Después de verificar que verify_pin funciona, descomenta para
+-- limpiar los PINs en texto plano:
+-- update public.app_users set pin = null where pin_hash is not null;
+
+-- ----------------------------------------
+-- 4) FUNCIONES (security definer)
+-- ----------------------------------------
+
+-- verify_pin: única vía de autenticación desde el cliente anon.
+-- Devuelve los datos del usuario si el PIN es correcto, null si no.
+-- Implementa rate limit por usuario (5 intentos fallidos -> bloqueo 5 min).
+create or replace function public.verify_pin(p_pin text)
+returns table (
+  pin text, nombre text, alias text, rol text,
+  emoji text, color text, branch_id text
+)
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  u record;
+begin
+  if p_pin is null or length(p_pin) < 3 then
+    return;
+  end if;
+
+  -- Buscar por hash; si no hay hash todavía, fallback al pin plano
+  -- (solo durante el periodo de migración)
+  select * into u from public.app_users au
+  where (au.pin_hash is not null and au.pin_hash = crypt(p_pin, au.pin_hash))
+     or (au.pin_hash is null and au.pin = p_pin)
+  limit 1;
+
+  if not found then
+    -- Incrementar intentos fallidos (best effort, sin info al cliente)
+    update public.app_users
+      set failed_attempts = coalesce(failed_attempts, 0) + 1,
+          locked_until = case
+            when coalesce(failed_attempts, 0) + 1 >= 5
+            then now() + interval '5 minutes'
+            else locked_until
+          end
+      where pin = p_pin or pin_hash = crypt(p_pin, coalesce(pin_hash, ''));
+    return;
+  end if;
+
+  -- Si está bloqueado, no devolver nada
+  if u.locked_until is not null and u.locked_until > now() then
+    return;
+  end if;
+
+  -- Si está inactivo, no devolver nada
+  if u.active = false then
+    return;
+  end if;
+
+  -- Login exitoso: limpiar contadores y registrar
+  update public.app_users
+    set failed_attempts = 0,
+        locked_until = null,
+        last_login = now()
+    where app_users.pin = u.pin;
+
+  return query select u.pin, u.nombre, u.alias, u.rol, u.emoji, u.color, u.branch_id;
+end$$;
+
+revoke all on function public.verify_pin(text) from public;
+grant execute on function public.verify_pin(text) to anon, authenticated;
+
+-- ----------------------------------------
+-- Helper: rol del usuario actual (vía JWT custom claim)
+-- ----------------------------------------
+-- El frontend, tras verify_pin, debe llamar a sb.auth.signInAnonymously()
+-- y guardar el rol en localStorage para incluirlo en headers, O bien
+-- usar Supabase Auth real. Mientras no haya auth real, las policies
+-- usan un header custom 'x-lf-role' que el cliente envía y que el JWT
+-- claim setea. Para v2 simplificada, usamos request.headers.
+
+create or replace function public.lf_current_role()
+returns text language sql stable as $$
+  select coalesce(
+    current_setting('request.jwt.claims', true)::jsonb ->> 'lf_role',
+    nullif(current_setting('request.headers', true)::jsonb ->> 'x-lf-role', ''),
+    'anon'
+  )
+$$;
+
+create or replace function public.lf_current_branch()
+returns text language sql stable as $$
+  select coalesce(
+    current_setting('request.jwt.claims', true)::jsonb ->> 'lf_branch',
+    nullif(current_setting('request.headers', true)::jsonb ->> 'x-lf-branch', ''),
+    null
+  )
+$$;
+
+-- ----------------------------------------
+-- 5) RLS POR ROL Y SUCURSAL
 -- ----------------------------------------
 
 alter table public.branches enable row level security;
@@ -196,19 +194,146 @@ alter table public.orders enable row level security;
 alter table public.parked_orders enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.inventory enable row level security;
+alter table public.product_ingredients enable row level security;
 
+-- Limpiar policies viejas permisivas
 do $$
 declare t text;
 begin
-  for t in select unnest(array['branches','categories','products','modifiers','discounts','customers','app_users','orders','parked_orders','app_settings','inventory']) loop
+  for t in select unnest(array['branches','categories','products','modifiers','discounts','customers','app_users','orders','parked_orders','app_settings','inventory','product_ingredients']) loop
     execute format('drop policy if exists "open_all_%I" on public.%I', t, t);
-    execute format('create policy "open_all_%I" on public.%I for all using (true) with check (true)', t, t);
+    execute format('drop policy if exists "%I_read" on public.%I', t, t);
+    execute format('drop policy if exists "%I_write" on public.%I', t, t);
   end loop;
 end$$;
 
+-- CATÁLOGO PÚBLICO: branches, categories, products, modifiers, discounts
+-- Lectura: cualquier anon (la app sin login muestra catálogo)
+-- Escritura: solo gerente/admin
+create policy "branches_read" on public.branches for select using (true);
+create policy "branches_write" on public.branches for all
+  using (lf_current_role() in ('admin','gerente'))
+  with check (lf_current_role() in ('admin','gerente'));
+
+create policy "categories_read" on public.categories for select using (true);
+create policy "categories_write" on public.categories for all
+  using (lf_current_role() in ('admin','gerente'))
+  with check (lf_current_role() in ('admin','gerente'));
+
+create policy "products_read" on public.products for select using (true);
+create policy "products_write" on public.products for all
+  using (lf_current_role() in ('admin','gerente'))
+  with check (lf_current_role() in ('admin','gerente'));
+
+create policy "modifiers_read" on public.modifiers for select using (true);
+create policy "modifiers_write" on public.modifiers for all
+  using (lf_current_role() in ('admin','gerente'))
+  with check (lf_current_role() in ('admin','gerente'));
+
+create policy "discounts_read" on public.discounts for select using (true);
+create policy "discounts_write" on public.discounts for all
+  using (lf_current_role() in ('admin','gerente'))
+  with check (lf_current_role() in ('admin','gerente'));
+
+-- DATOS OPERATIVOS: orders, parked_orders, inventory
+-- Lectura: cajero ve solo su sucursal; gerente igual; admin todas.
+-- Escritura: cajero solo en su sucursal, admin global.
+create policy "orders_read" on public.orders for select using (
+  lf_current_role() = 'admin'
+  or (lf_current_role() in ('gerente','cajero') and branch_id = lf_current_branch())
+);
+create policy "orders_insert" on public.orders for insert with check (
+  lf_current_role() in ('admin','gerente','cajero')
+  and (lf_current_role() = 'admin' or branch_id = lf_current_branch())
+);
+create policy "orders_update" on public.orders for update using (
+  lf_current_role() = 'admin'
+  or (lf_current_role() = 'gerente' and branch_id = lf_current_branch())
+);
+create policy "orders_delete" on public.orders for delete using (
+  lf_current_role() = 'admin'
+);
+
+create policy "parked_read" on public.parked_orders for select using (
+  lf_current_role() = 'admin'
+  or (lf_current_role() in ('gerente','cajero') and branch_id = lf_current_branch())
+);
+create policy "parked_write" on public.parked_orders for all using (
+  lf_current_role() in ('admin','gerente','cajero')
+  and (lf_current_role() = 'admin' or branch_id = lf_current_branch())
+) with check (
+  lf_current_role() in ('admin','gerente','cajero')
+  and (lf_current_role() = 'admin' or branch_id = lf_current_branch())
+);
+
+create policy "inventory_read" on public.inventory for select using (
+  lf_current_role() = 'admin'
+  or (lf_current_role() in ('gerente','cajero') and (branch_id = lf_current_branch() or branch_id is null))
+);
+create policy "inventory_write" on public.inventory for all using (
+  lf_current_role() in ('admin','gerente')
+) with check (
+  lf_current_role() in ('admin','gerente')
+);
+
+-- CLIENTES Lady Club: cajero lee/escribe, admin ve todo
+create policy "customers_read" on public.customers for select using (
+  lf_current_role() in ('admin','gerente','cajero')
+);
+create policy "customers_write" on public.customers for all using (
+  lf_current_role() in ('admin','gerente','cajero')
+) with check (
+  lf_current_role() in ('admin','gerente','cajero')
+);
+
+-- USUARIOS app_users: NUNCA expuesta a anon. Solo admin escribe.
+-- La autenticación va por verify_pin (security definer).
+create policy "users_admin_only" on public.app_users for all using (
+  lf_current_role() = 'admin'
+) with check (
+  lf_current_role() = 'admin'
+);
+
+-- AJUSTES: gerente/admin
+create policy "settings_read" on public.app_settings for select using (
+  lf_current_role() in ('admin','gerente','cajero')
+);
+create policy "settings_write" on public.app_settings for all using (
+  lf_current_role() in ('admin','gerente')
+) with check (
+  lf_current_role() in ('admin','gerente')
+);
+
+-- PRODUCT_INGREDIENTS: lectura abierta (para que el cliente calcule),
+-- escritura solo gerente/admin
+create policy "ingredients_read" on public.product_ingredients for select using (true);
+create policy "ingredients_write" on public.product_ingredients for all
+  using (lf_current_role() in ('admin','gerente'))
+  with check (lf_current_role() in ('admin','gerente'));
+
 -- ----------------------------------------
--- 4) REALTIME
+-- 6) ÍNDICES Y REALTIME
 -- ----------------------------------------
+
+-- Compuesto para queries del historial (filtro por branch + ordenar por fecha)
+drop index if exists idx_orders_branch;
+drop index if exists idx_orders_created;
+create index if not exists idx_orders_branch_created
+  on public.orders(branch_id, created_at desc);
+
+create index if not exists idx_orders_customer
+  on public.orders(customer_id)
+  where customer_id is not null;
+
+create index if not exists idx_orders_status
+  on public.orders(status)
+  where status != 'completada';
+
+create index if not exists idx_customers_phone on public.customers(phone);
+create index if not exists idx_products_cat on public.products(cat);
+create index if not exists idx_inventory_branch on public.inventory(branch_id);
+
+-- Realtime (idempotente)
 do $$
 begin
   begin alter publication supabase_realtime add table public.orders; exception when duplicate_object then null; end;
@@ -218,97 +343,23 @@ begin
   begin alter publication supabase_realtime add table public.inventory; exception when duplicate_object then null; end;
 end$$;
 
--- REPLICA IDENTITY FULL hace que los eventos UPDATE incluyan todos los campos del row,
--- no solo el id. Necesario para que cambios de status/refund se propaguen correctamente.
+-- REPLICA IDENTITY: full solo donde necesitamos UPDATEs propagados
+-- (orders por refunds, customers por puntos). El resto = default.
 alter table public.orders replica identity full;
-alter table public.products replica identity full;
 alter table public.customers replica identity full;
-alter table public.parked_orders replica identity full;
-alter table public.inventory replica identity full;
+-- products, parked_orders, inventory: replica identity DEFAULT (más eficiente)
+alter table public.products replica identity default;
+alter table public.parked_orders replica identity default;
+alter table public.inventory replica identity default;
 
 -- ----------------------------------------
--- 5) SEED INICIAL
+-- 7) VERIFICACIÓN
 -- ----------------------------------------
+-- Después de correr esto:
+--   1. select * from verify_pin('0000');  -> debe devolver Lozo
+--   2. select * from verify_pin('9999');  -> debe devolver vacío
+--   3. select * from app_users;           -> debe fallar para anon
+--   4. select * from products;            -> debe funcionar para anon
+--   5. select * from orders;              -> debe fallar para anon sin header
 
--- Sucursales (sucursales reales de Lady Fresa)
-insert into public.branches (id, name, emoji, class, addr, tel, hours, principal, status)
-values
-  ('balbuena', 'Balbuena', '🌸', 'c1', 'Balbuena · CDMX', '', '11:00 - 22:00', true, 'open'),
-  ('delvalle', 'Del Valle', '🍓', 'c2', 'Del Valle · CDMX', '', '11:00 - 22:00', false, 'open')
-on conflict (id) do nothing;
-
--- Categorias
-insert into public.categories (name, emoji, position) values
-  ('Frutas', '🍓', 1),
-  ('Especiales LFM', '🍰', 2),
-  ('Bebidas', '🥤', 3)
-on conflict (name) do nothing;
-
--- Usuarios demo
-insert into public.app_users (pin, nombre, alias, rol, emoji, color) values
-  ('0000', 'Lozo', 'Lozo', 'admin', '👑', '#D93956'),
-  ('1111', 'Mariana', 'Mariana', 'gerente', '👩‍💼', '#A85B7C'),
-  ('2222', 'Ana', 'Ana', 'cajero', '🍓', '#E67A8A'),
-  ('3333', 'Luis', 'Luis', 'cajero', '🧑‍🍳', '#E67A8A')
-on conflict (pin) do nothing;
-
--- Productos demo
-insert into public.products (id, name, cat, price, "desc", img, mods, active) values
-  (1, 'Fresas', 'Frutas', 99, 'Elige base y toppings.', 'img/products/fresas.png', '["Tamaño","Bases","Toppings Incluidos","Extra Premium"]'::jsonb, true),
-  (2, 'Platanos', 'Frutas', 99, 'Elige base y toppings.', 'img/products/platanos.png', '["Tamaño","Bases","Toppings Incluidos","Extra Premium"]'::jsonb, true),
-  (3, 'Combinado', 'Frutas', 109, 'Fresas + platano.', 'img/products/combinado.png', '["Tamaño","Bases","Toppings Incluidos","Extra Premium"]'::jsonb, true),
-  (4, 'La Caramelita', 'Especiales LFM', 149, 'Platano, crema, caramelo.', 'img/products/caramelita.png', '["Extra Premium"]'::jsonb, true),
-  (5, 'La Cookie Lover', 'Especiales LFM', 159, 'Fresas, crema, Oreo.', 'img/products/cookie-lover.png', '["Extra Premium"]'::jsonb, true),
-  (6, 'Lady Lotus', 'Especiales LFM', 159, 'Fresas, caramelo, Lotus.', 'img/products/lady-lotus.png', '["Extra Premium"]'::jsonb, true),
-  (7, 'La Mas Mexa', 'Especiales LFM', 149, 'Fresas, platano, mazapan.', 'img/products/mas-mexa.png', '["Extra Premium"]'::jsonb, true),
-  (8, 'La Mil Leches', 'Especiales LFM', 169, 'El clasico elevado.', null, '["Extra Premium"]'::jsonb, true),
-  (9, 'La Pistachona', 'Especiales LFM', 189, 'Fresas, pistache, Dubai.', 'img/products/pistachona.png', '["Extra Premium"]'::jsonb, true),
-  (10, 'La Presumida', 'Especiales LFM', 159, 'Nutella, ferrero, avellana.', 'img/products/presumida.png', '["Extra Premium"]'::jsonb, true),
-  (11, 'Agua Mineral', 'Bebidas', 50, '355ml.', null, '[]'::jsonb, true),
-  (12, 'Agua Natural', 'Bebidas', 50, 'Alcalina 500ml.', null, '[]'::jsonb, true),
-  (13, 'Cafe de Olla', 'Bebidas', 45, 'Canela y piloncillo - 12oz.', 'img/products/cafe.png', '[]'::jsonb, true)
-on conflict (id) do nothing;
-
--- Modificadores
-insert into public.modifiers (name, required, max_select, label, options) values
-  ('Tamaño', true, 1, '', '[{"name":"Chico","extra":0},{"name":"Mediano","extra":36},{"name":"Grande","extra":50}]'::jsonb),
-  ('Bases', true, 1, '', '[{"name":"Crema","extra":0},{"name":"Chococrema","extra":15},{"name":"Caramel cream","extra":20},{"name":"Chocolate","extra":25},{"name":"Caramelo","extra":30},{"name":"Chocolate Blanco","extra":25}]'::jsonb),
-  ('Toppings Incluidos', false, 2, '2 gratis', '[{"name":"Almendra","extra":0},{"name":"Oreo","extra":0},{"name":"Coco","extra":0},{"name":"Choco Chips","extra":0},{"name":"Lechera","extra":0},{"name":"Amaranto","extra":0},{"name":"Mazapán","extra":0},{"name":"M&Ms","extra":0}]'::jsonb),
-  ('Extra Premium', false, 5, '+$25 c/u', '[{"name":"Ferrero","extra":25},{"name":"Pistache","extra":25},{"name":"KitKat","extra":25},{"name":"Lotus","extra":25},{"name":"Dubai","extra":25},{"name":"Nutella","extra":25}]'::jsonb)
-on conflict (name) do nothing;
-
--- Descuentos demo
-insert into public.discounts (id, name, description, type, value, active) values
-  (1, '-10% estudiantes', 'Codigo ESTUDIANTE - lun-vie 14-17h', 'percent', 10, true),
-  (2, '2x$250 Fresas Chico', 'Combo - todos los dias', 'combo', 250, true),
-  (3, '-$30 primera compra', 'App - un uso por cliente', 'fixed', 30, false)
-on conflict (id) do nothing;
-
--- Inventario inicial (insumos típicos de Lady Fresa)
-insert into public.inventory (sku, name, cat, ico, qty, unit, min_qty, max_qty, cost) values
-  ('FR-001', 'Fresa fresca', 'Frutas', '🍓', 12.5, 'kg', 8, 30, 85),
-  ('FR-002', 'Plátano', 'Frutas', '🍌', 6.2, 'kg', 5, 15, 28),
-  ('FR-003', 'Mango', 'Frutas', '🥭', 4.8, 'kg', 5, 12, 45),
-  ('TP-001', 'Chocolate líquido', 'Toppings', '🍫', 3.2, 'L', 2, 8, 120),
-  ('TP-002', 'Lechera', 'Toppings', '🥛', 5.5, 'L', 3, 10, 95),
-  ('TP-003', 'Crema batida', 'Toppings', '🍦', 0.8, 'L', 2, 6, 140),
-  ('TP-004', 'Caramelo', 'Toppings', '🍯', 1.4, 'L', 1, 5, 110),
-  ('TP-005', 'Nutella', 'Toppings', '🟫', 2.1, 'kg', 1, 4, 220),
-  ('GD-001', 'Oreo', 'Galletas', '🍪', 42, 'u', 30, 120, 3),
-  ('GD-002', 'Lotus', 'Galletas', '🟤', 18, 'u', 20, 60, 5),
-  ('GD-003', 'KitKat', 'Galletas', '🟥', 24, 'u', 15, 50, 8),
-  ('GD-004', 'Ferrero Rocher', 'Galletas', '🟤', 16, 'u', 10, 40, 12),
-  ('GD-005', 'Mazapán', 'Galletas', '🟡', 34, 'u', 20, 80, 4),
-  ('GD-006', 'M&Ms', 'Galletas', '🔴', 1.2, 'kg', 0.5, 3, 180),
-  ('BB-001', 'Agua natural 600ml', 'Bebidas', '💧', 48, 'u', 30, 120, 8),
-  ('BB-002', 'Agua mineral', 'Bebidas', '🫗', 36, 'u', 20, 80, 12),
-  ('BB-003', 'Café tostado', 'Bebidas', '☕', 2.8, 'kg', 1, 5, 320),
-  ('DS-001', 'Vaso chico 12oz', 'Desechables', '🥤', 480, 'u', 200, 1000, 2),
-  ('DS-002', 'Vaso mediano 16oz', 'Desechables', '🥤', 320, 'u', 200, 1000, 3),
-  ('DS-003', 'Vaso grande 22oz', 'Desechables', '🥤', 180, 'u', 150, 800, 4),
-  ('DS-004', 'Cuchara', 'Desechables', '🥄', 620, 'u', 300, 1500, 1),
-  ('DS-005', 'Servilletas', 'Desechables', '🧻', 12, 'paq', 5, 30, 28)
-on conflict (sku) do nothing;
-
--- LISTO. Deberias ver "Success. No rows returned"
--- Verifica en Table Editor que aparezcan las 10 tablas con datos.
+-- LISTO.

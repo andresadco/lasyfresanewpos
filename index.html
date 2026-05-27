@@ -1,13 +1,24 @@
 <!DOCTYPE html><html lang="es"><head>
 
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+<!-- iOS PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
+<meta name="apple-mobile-web-app-title" content="Lady Fresa">
+
+<!-- Android / Chrome PWA -->
+<meta name="theme-color" content="#A6182E">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- Performance: preconnect a recursos críticos -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cohskhrjecuwqlqhjvnh.supabase.co">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
 <title>Lady Fresa · POS</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,400&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css">
@@ -4203,6 +4214,59 @@ input, textarea, select, button {
   .sheet-title { font-size: 16px; }
   .sheet-sub { font-size: 11px; }
 }
+
+/* ── MODALES (confirmModal, alertModal, promptModal) ────────── */
+@keyframes lfFadeIn  { from { opacity:0 } to { opacity:1 } }
+@keyframes lfFadeOut { from { opacity:1 } to { opacity:0 } }
+@keyframes lfPopIn {
+  from { opacity:0; transform: translateY(8px) scale(0.96) }
+  to   { opacity:1; transform: translateY(0)   scale(1) }
+}
+@keyframes lfShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+.lf-confirm-ov {
+  position: fixed; inset: 0;
+  background: rgba(20,10,15,0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-4);
+  animation: lfFadeIn 180ms var(--ease-out);
+}
+.lf-confirm-card {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  max-width: 380px; width: 100%;
+  padding: var(--sp-6) var(--sp-5);
+  box-shadow: var(--shadow-4);
+  animation: lfPopIn 220ms var(--ease-spring);
+}
+.lf-confirm-title {
+  font-family: var(--font-display);
+  font-size: 24px; letter-spacing: 1px;
+  margin-bottom: var(--sp-2);
+  color: var(--ink-900);
+}
+.lf-confirm-body {
+  color: var(--ink-700);
+  margin-bottom: var(--sp-5);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+}
+.lf-confirm-actions {
+  display: flex; gap: var(--sp-2); justify-content: flex-end;
+}
+.lf-confirm-input {
+  width: 100%;
+  margin-bottom: var(--sp-5);
+  font-size: 18px;
+  font-family: var(--font-display);
+  letter-spacing: 1px;
+}
 </style>
 </head>
 <body>
@@ -6272,33 +6336,71 @@ function renderLoginChips(){
     </button>
   `).join('');
 }
-function pinEnter(){
+async function pinEnter(){
   if(pinBuffer.length<4) return;
-  const user = USUARIOS.find(u => u.pin === pinBuffer);
+
+  // Feedback visual: verificando
+  const greeting = document.querySelector('.login-greeting');
+  const originalGreeting = greeting ? greeting.textContent : '';
+  if(greeting) greeting.textContent = 'Verificando…';
+
+  let user = null;
+
+  // 1) Intentar contra Supabase (servidor) — preferido
+  if(window.LFSync && window.LFSync.verifyPin){
+    try {
+      user = await window.LFSync.verifyPin(pinBuffer);
+    } catch(err){
+      console.warn('verify_pin error:', err);
+    }
+  }
+
+  // 2) Fallback local (sin red): solo si está offline
+  if(!user && !navigator.onLine){
+    const local = USUARIOS.find(u => u.pin === pinBuffer);
+    if(local) user = local;
+  }
+
   if(!user){
     // PIN desconocido — rechazar
     vibrate([60, 40, 60]);
     pinBuffer = '';
     updateDots();
-    // Animación de error en los dots
     const dots = $('#pin-dots');
     if(dots){
       dots.style.animation = 'none';
-      void dots.offsetWidth; // restart animation
-      dots.style.animation = 'shake 0.4s';
+      void dots.offsetWidth;
+      dots.style.animation = 'lfShake 0.4s';
+    }
+    if(greeting){
+      greeting.textContent = 'PIN incorrecto';
+      setTimeout(() => { greeting.textContent = originalGreeting || 'Ingresa tu PIN'; }, 1800);
     }
     if(typeof showToast === 'function') showToast('PIN incorrecto', 0, '⚠️');
     return;
   }
+
+  // Si el server devolvió una sucursal del usuario, alinear
+  if(user.branch_id && typeof currentBranchId !== 'undefined' && currentBranchId !== user.branch_id){
+    currentBranchId = user.branch_id;
+    if(window.LFSync && window.LFSync.setBranchHeader){
+      window.LFSync.setBranchHeader(user.branch_id);
+    }
+  }
+
   setActiveUser(user);
+
+  // Cargar datos con los headers de rol/branch (RLS aplica)
+  if(window.LFSync && window.LFSync.load){
+    await window.LFSync.load();
+  }
+
   $('#screen-login').classList.remove('active');
   $('#screen-pos').classList.add('active');
   renderCats();
   renderProducts();
   applyRoleVisibility();
-  // Render drawer with empty state so it shows content
   if(typeof renderOrderDrawer === 'function') renderOrderDrawer();
-  // Auto-open drawer on desktop so it's always visible
   if(window.innerWidth >= 900 && typeof openOrderDrawer === 'function'){
     setTimeout(()=>openOrderDrawer(), 100);
   }
@@ -6320,8 +6422,17 @@ function applyRoleVisibility(){
     el.style.display = canSee(need) ? '' : 'none';
   });
 }
-function logout(){
-  if(!confirm('¿Cerrar sesión, ' + ROLE.user.alias + '?')) return;
+async function logout(){
+  const ok = await confirmModal({
+    title: 'Cerrar sesión',
+    body: `¿Salir, ${ROLE.user.alias}?`,
+    confirmText: 'Cerrar sesión',
+    danger: true,
+  });
+  if(!ok) return;
+  if(window.LFSync && window.LFSync.clearAuth){
+    window.LFSync.clearAuth();
+  }
   pinBuffer=''; updateDots();
   order=[]; renderOrderBar();
   $('#screen-pos').classList.remove('active');
@@ -6342,29 +6453,62 @@ function filterCat(cat, btn){
 
 /* ─── PRODUCTS ─── */
 function renderProducts(){
-  const list = PRODUCTS.filter(p => catFilter==='Todos' || p.cat===catFilter);
+  const list = PRODUCTS.filter(p => p.active !== false && (catFilter==='Todos' || p.cat===catFilter));
   const grid = $('#products-grid');
+  if(!grid) return;
   if(!list.length){ grid.innerHTML='<div class="empty-state"><div class="icon">🔍</div><p>Sin productos en esta categoría</p></div>'; return; }
   grid.innerHTML = list.map(p=>{
     const qty = order.filter(i=>i.productId===p.id).reduce((s,i)=>s+i.qty,0);
     const hasSize = p.mods.includes('Tamaño');
     const isSpec = p.cat==='Especiales LFM';
     const canOneTap = TW.onetap==='on' && p.mods.length===0;
+    const safeEmoji = sanitize(EMOJI[p.name] || '🍓');
+    const safeName  = sanitize(p.name);
+    const safeImg   = sanitize(p.img || '');
     return `<div class="prod-card${qty?' in-order':''}"
-      data-cat="${p.cat}" data-id="${p.id}" data-onetap="${canOneTap}"
-      onclick="handleProductTap(${p.id})">
-      ${qty?`<div class="prod-qty-badge" key="${p.id}-${qty}">${qty}</div>`:''}
+      data-cat="${sanitize(p.cat)}" data-id="${p.id}" data-onetap="${canOneTap}">
+      ${qty?`<div class="prod-qty-badge" data-key="${p.id}-${qty}">${qty}</div>`:''}
       ${isSpec?`<div class="prod-flag">Especial</div>`:''}
       ${p.img
-        ? `<div class="prod-tile"><img src="${p.img}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('img-fallback');this.parentElement.setAttribute('data-emoji','${EMOJI[p.name]||'🍓'}')"></div>`
-        : `<div class="prod-tile placeholder"><div class="ph-cup"><span class="ph-emoji">${EMOJI[p.name]||'🍓'}</span><span class="ph-mark">LADY FRESA</span></div></div>`}
-      <div class="prod-name">${sanitize(p.name)}</div>
-      <div class="prod-meta">${sanitize(p.desc)}</div>
+        ? `<div class="prod-tile"><img src="${safeImg}" alt="${safeName}" loading="lazy" data-emoji="${safeEmoji}"></div>`
+        : `<div class="prod-tile placeholder"><div class="ph-cup"><span class="ph-emoji">${safeEmoji}</span><span class="ph-mark">LADY FRESA</span></div></div>`}
+      <div class="prod-name">${safeName}</div>
+      <div class="prod-meta">${sanitize(p.desc || '')}</div>
       <div class="prod-price">${fmt(p.price)}${hasSize?'<span class="prod-price-suffix">base</span>':''}</div>
       <div class="prod-one-tap">+</div>
     </div>`;
   }).join('');
 }
+
+// Event delegation: un solo listener para toda la grid.
+// Evita re-registrar 13+ handlers en cada render.
+(function setupProductGridDelegation(){
+  const init = () => {
+    const grid = document.getElementById('products-grid');
+    if(!grid || grid.dataset.lfDelegated === '1') return;
+    grid.dataset.lfDelegated = '1';
+    grid.addEventListener('click', (e) => {
+      const card = e.target.closest('.prod-card');
+      if(!card) return;
+      const id = parseInt(card.dataset.id, 10);
+      if(!isNaN(id)) handleProductTap(id, e);
+    });
+    // Fallback de imagen rota — captura el error en la fase de captura
+    grid.addEventListener('error', (e) => {
+      const img = e.target;
+      if(img.tagName !== 'IMG') return;
+      const emoji = img.dataset.emoji || '🍓';
+      const tile = img.parentElement;
+      tile.classList.add('img-fallback');
+      tile.innerHTML = `<div class="ph-cup"><span class="ph-emoji">${emoji}</span></div>`;
+    }, true);
+  };
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
 
 function handleProductTap(pid, ev){
   const p = PRODUCTS.find(x=>x.id===pid); if(!p) return;
@@ -6491,6 +6635,83 @@ function showToast(text, price, emoji){
   t.innerHTML = `<span class="toast-emoji">${emoji||'🍓'}</span><span>${sanitize(text)}</span><span class="toast-price">${fmt(price)}</span>`;
   stack.appendChild(t);
   setTimeout(()=>t.remove(), 1800);
+}
+
+/* ─── MODALES (reemplazo de alert/confirm/prompt nativos) ──────
+   Estos no bloquean el thread, respetan el diseño del POS y son
+   accesibles con teclado (Enter = confirmar, ESC = cancelar). */
+
+function confirmModal({ title='Confirmar', body='', confirmText='Confirmar', cancelText='Cancelar', danger=false, oneButton=false } = {}){
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'lf-confirm-ov';
+    const btnStyle = danger ? 'background:var(--danger);' : '';
+    ov.innerHTML = `
+      <div class="lf-confirm-card">
+        <div class="lf-confirm-title">${sanitize(title)}</div>
+        ${body ? `<div class="lf-confirm-body">${sanitize(body)}</div>` : ''}
+        <div class="lf-confirm-actions">
+          ${oneButton ? '' : `<button class="btn btn-secondary" data-lf-cancel>${sanitize(cancelText)}</button>`}
+          <button class="btn btn-primary" style="${btnStyle}" data-lf-confirm>${sanitize(confirmText)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+
+    const close = (val) => {
+      ov.style.animation = 'lfFadeOut 160ms var(--ease-out) forwards';
+      setTimeout(() => { ov.remove(); resolve(val); }, 160);
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => {
+      if(e.key === 'Escape') close(false);
+      if(e.key === 'Enter')  close(true);
+    };
+
+    ov.querySelector('[data-lf-confirm]').onclick = () => close(true);
+    const cancelBtn = ov.querySelector('[data-lf-cancel]');
+    if(cancelBtn) cancelBtn.onclick = () => close(false);
+    ov.onclick = (e) => { if(e.target === ov && !oneButton) close(false); };
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+function alertModal(title, body){
+  return confirmModal({ title, body, confirmText:'Entendido', oneButton:true });
+}
+
+function promptModal({ title='Valor', body='', placeholder='', defaultValue='', type='text', confirmText='OK', cancelText='Cancelar' } = {}){
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'lf-confirm-ov';
+    ov.innerHTML = `
+      <div class="lf-confirm-card">
+        <div class="lf-confirm-title">${sanitize(title)}</div>
+        ${body ? `<div class="lf-confirm-body">${sanitize(body)}</div>` : ''}
+        <input class="input lf-confirm-input" data-lf-input type="${sanitize(type)}" placeholder="${sanitize(placeholder)}" value="${sanitize(defaultValue)}">
+        <div class="lf-confirm-actions">
+          <button class="btn btn-secondary" data-lf-cancel>${sanitize(cancelText)}</button>
+          <button class="btn btn-primary" data-lf-confirm>${sanitize(confirmText)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const input = ov.querySelector('[data-lf-input]');
+    setTimeout(() => { input.focus(); input.select(); }, 80);
+
+    const close = (val) => {
+      ov.style.animation = 'lfFadeOut 160ms var(--ease-out) forwards';
+      setTimeout(() => { ov.remove(); resolve(val); }, 160);
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => {
+      if(e.key === 'Escape') close(null);
+      if(e.key === 'Enter')  close(input.value);
+    };
+
+    ov.querySelector('[data-lf-confirm]').onclick = () => close(input.value);
+    ov.querySelector('[data-lf-cancel]').onclick  = () => close(null);
+    ov.onclick = (e) => { if(e.target === ov) close(null); };
+    document.addEventListener('keydown', onKey);
+  });
 }
 
 /* ─── ORDER BAR (ahora controla FAB) ─── */
@@ -6967,8 +7188,8 @@ function chgQty(idx, delta){
   vibrate(10);
 }
 
-function cancelOrder(){
-  if(!confirm('¿Cancelar la orden completa?')) return;
+async function cancelOrder(){
+  if(!(await confirmModal({title:'Cancelar orden', body:'Se perderán todos los productos agregados.', danger:true, confirmText:'Cancelar orden', cancelText:'Mantener'}))) return;
   order = [];
   discount = null; tipPct = 0; tipFixed = 0; currentClub = null;
   closeOrderSheet();
@@ -7175,9 +7396,11 @@ function setTip(pct, btn){
   refreshCobroTotals();
   vibrate(10);
 }
-function setTipCustom(btn){
-  const v = prompt('Monto de propina en pesos:');
-  const n = parseInt(v); if(!n || n<0) return;
+async function setTipCustom(btn){
+  const v = await promptModal({title:'Propina personalizada', body:'Monto en pesos', placeholder:'0', type:'number'});
+  if(v === null) return;
+  const n = parseInt(v);
+  if(!n || n < 0) return;
   tipPct = 0; tipFixed = n;
   btn.parentElement.querySelectorAll('.tip-chip').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
@@ -7234,24 +7457,38 @@ function refreshEfec(){
   }
 }
 
-function confirmarPago(){
-  const total = orderFinal().total;
-  const cambio = payMethod==='efectivo' ? efecAmount - total : 0;
-
-  // Calcular detalle de venta (subtotal sin IVA + IVA + fee delivery)
+async function confirmarPago(){
+  // Guardas de entrada
+  if(!order.length) return;
   const final = orderFinal();
-  const fee = (svcType === 'delivery' && typeof DELIVERY !== 'undefined' && DELIVERY.fee) ? DELIVERY.fee : 0;
-  // gross = lo que el cliente paga sin propina (con IVA incluido). El IVA se calcula 16% del gross.
-  const grossWithIva = final.afterDisc + fee;
-  const ivaAmount = Math.round(grossWithIva - grossWithIva / 1.16);
-  const subtotalSinIva = grossWithIva - ivaAmount;
+  if(payMethod === 'efectivo' && efecAmount < final.total){
+    showToast('Efectivo insuficiente', 0, '⚠');
+    return;
+  }
 
-  // Añadir al historial LOCAL de inmediato (para que el cajero la vea sin esperar)
+  const fee = (svcType === 'delivery' && typeof DELIVERY !== 'undefined' && DELIVERY.fee) ? DELIVERY.fee : 0;
+
+  // ── IVA configurable (lee AJ.iva y AJ.ivaIncluido) ──
+  const ivaRate = ((typeof AJ !== 'undefined' && AJ.iva) || 16) / 100;
+  const ivaIncluido = typeof AJ === 'undefined' || AJ.ivaIncluido !== false;
+  const taxableBase = final.afterDisc; // sin fee, sin tip
+  let subtotalSinIva, ivaAmount;
+  if(ivaIncluido){
+    subtotalSinIva = Math.round(taxableBase / (1 + ivaRate));
+    ivaAmount = taxableBase - subtotalSinIva;
+  } else {
+    subtotalSinIva = taxableBase;
+    ivaAmount = Math.round(taxableBase * ivaRate);
+  }
+
+  const tipAmt = final.tip || 0;
+  const cambio = payMethod === 'efectivo' ? efecAmount - final.total : 0;
+  const orderNumber = String(orderN).padStart(3, '0');
+
   const orderRecord = {
-    n: String(orderN).padStart(3,'0'),
+    n: orderNumber,
     time: new Date().toTimeString().slice(0,5),
     items: order.map(it => {
-      // Agrupar tags repetidos (Oreo×2 en vez de Oreo, Oreo)
       const counts = {};
       (it.tags || []).forEach(t => {
         const key = t.name;
@@ -7261,21 +7498,23 @@ function confirmarPago(){
       const mods = Object.values(counts).map(t => {
         const qtyLabel = t.count > 1 ? ` ×${t.count}` : '';
         const totalExtra = t.extra * t.count;
-        return `${t.name}${qtyLabel}${totalExtra>0?' +$'+totalExtra:''}`;
+        return `${t.name}${qtyLabel}${totalExtra > 0 ? ' +$' + totalExtra : ''}`;
       });
       return {
+        productId: it.productId,
         name: it.name, qty: it.qty, price: it.unitPrice, emoji: it.emoji,
-        mods,
-        note: it.note || '',
+        mods, note: it.note || '',
       };
     }),
     client: currentClub ? currentClub.name : '',
+    customer_id: currentClub ? currentClub.id : null,
     svc: svcType,
     pay: payMethod,
     subtotal: subtotalSinIva,
     discount: final.disc || 0,
     iva: ivaAmount,
-    fee: fee,
+    tip: tipAmt,
+    fee,
     total: final.total,
     status: 'completada',
     refund: null,
@@ -7283,11 +7522,57 @@ function confirmarPago(){
     branch_id: typeof currentBranchId !== 'undefined' ? currentBranchId : null,
     created_at: new Date().toISOString(),
   };
+
+  // ── PASO 1: Push a Supabase (o encolar offline) ──
+  let pushOk = false;
+  let queued = false;
+
+  if(window.LFSync && window.LFSync.pushOrder){
+    try {
+      const saved = await window.LFSync.pushOrder({
+        n: orderRecord.n,
+        time: orderRecord.time,
+        items: orderRecord.items,
+        client: orderRecord.client,
+        customer_id: orderRecord.customer_id,
+        svc: orderRecord.svc,
+        pay: orderRecord.pay,
+        subtotal: orderRecord.subtotal,
+        discount: orderRecord.discount,
+        iva: orderRecord.iva,
+        tip: orderRecord.tip,
+        fee: orderRecord.fee,
+        total: orderRecord.total,
+        status: orderRecord.status,
+      });
+      if(saved){
+        pushOk = true;
+        if(saved.id) orderRecord.id = saved.id;
+      } else {
+        // null = encolada offline
+        queued = true;
+      }
+    } catch(err){
+      console.warn('[Pago] Push error, encolando:', err);
+      queued = true;
+    }
+  } else {
+    // Sin LFSync = solo local
+    pushOk = true;
+  }
+
+  if(!pushOk && !queued){
+    await alertModal('Error', 'No se pudo guardar la venta. Verifica tu conexión.');
+    return;
+  }
+
+  // ── PASO 2: Ya hay garantía de venta → mutar estado local ──
+
   if(typeof ORDERS_MOCK !== 'undefined'){
     ORDERS_MOCK.unshift(orderRecord);
   }
 
-  // ── Sumar visita + spend + puntos al cliente del Lady Club (si hay) ──
+  // Bump cliente Lady Club (atómico con la venta)
   if(currentClub && currentClub.id && typeof CLIENTES_MOCK !== 'undefined'){
     const cli = CLIENTES_MOCK.find(x => x.id === currentClub.id);
     if(cli){
@@ -7295,69 +7580,61 @@ function confirmarPago(){
       cli.orders = before + 1;
       cli.spend = (Number(cli.spend) || 0) + final.total;
       cli.last = 'hoy';
-      // Puntos: ~1 punto por cada $10 (puedes ajustar la fórmula)
       const ptsGanados = Math.round(final.total / 10);
       cli.pts = (Number(cli.pts) || 0) + ptsGanados;
-      // Actualizar tier si subió
       if(typeof updateTier === 'function') updateTier(cli);
-      // Persistir
-      if(typeof window.persistAll === 'function') window.persistAll();
       if(window.LFSync && window.LFSync.pushCustomer) window.LFSync.pushCustomer(cli);
-      // Notificar: ¿llegó a premio?
       const justGotReward = cli.orders > 0 && cli.orders % 10 === 0 && Math.floor(cli.orders/10) > Math.floor(before/10);
-      if(justGotReward){
-        setTimeout(() => showToast(`🎁 ¡${cli.name} ganó un premio!`, 0, '🎉'), 800);
-      } else {
-        setTimeout(() => showToast(`+1 visita · ${cli.name} (${cli.orders}/10)`, 0, '🎫'), 800);
-      }
+      setTimeout(() => {
+        if(justGotReward) showToast(`🎁 ¡${cli.name} ganó un premio!`, 0, '🎉');
+        else showToast(`+1 visita · ${cli.name} (${cli.orders}/10)`, 0, '🎫');
+      }, 800);
     }
   }
 
-  // Push venta a Supabase (si hay sync)
-  try {
-    if(window.LFSync && window.LFSync.pushOrder){
-      const orderData = {
-        n: orderRecord.n,
-        time: orderRecord.time,
-        items: orderRecord.items,
-        client: orderRecord.client,
-        svc: svcType,
-        pay: payMethod,
-        subtotal: subtotalSinIva,
-        discount: final.disc || 0,
-        iva: ivaAmount,
-        fee: fee,
-        total: final.total,
-        status: 'completada',
-      };
-      window.LFSync.pushOrder(orderData).then(saved => {
-        if(saved){
-          // Reemplazar el id local con el de Supabase si vino
-          if(saved.id) orderRecord.id = saved.id;
-          if(typeof showToast === 'function') showToast('Venta guardada en la nube ✓', 0, '☁️');
-        } else {
-          if(typeof showToast === 'function') showToast('Venta guardada localmente · pendiente subir', 0, '📥');
-        }
-      }).catch(err => {
-        console.warn('Push order error:', err);
-        if(typeof showToast === 'function') showToast('Venta guardada localmente · pendiente subir', 0, '📥');
+  // ── PASO 3: Descontar insumos si hay recetas (opcional) ──
+  if(typeof INV_MOCK !== 'undefined' && typeof PRODUCT_INGREDIENTS !== 'undefined'){
+    const consumed = {};
+    order.forEach(it => {
+      const recipe = PRODUCT_INGREDIENTS[it.productId];
+      if(!recipe) return;
+      recipe.forEach(({ sku, qty_per_unit }) => {
+        consumed[sku] = (consumed[sku] || 0) + qty_per_unit * it.qty;
       });
-    }
-  } catch(e){ console.warn('Push order error:', e); }
+    });
+    Object.entries(consumed).forEach(([sku, qty]) => {
+      const item = INV_MOCK.find(i => i.sku === sku);
+      if(item){
+        item.qty = Math.max(0, item.qty - qty);
+        if(window.LFSync && window.LFSync.pushInventoryItem){
+          window.LFSync.pushInventoryItem(item);
+        }
+      }
+    });
+  }
 
-  // Mostrar flash
-  $('#sf-order-num').textContent = String(orderN).padStart(3,'0');
-  $('#sf-method').textContent = payMethod==='efectivo'?'Efectivo':payMethod==='tarjeta'?'Tarjeta':'Transferencia';
+  // Marcar dirty para autosave
+  if(typeof markDirty === 'function') markDirty('orders');
+
+  // ── PASO 4: Feedback al cajero ──
+  if(queued){
+    showToast('Venta guardada localmente · pendiente subir', 0, '📥');
+  } else if(pushOk){
+    showToast('Venta guardada en la nube ✓', 0, '☁️');
+  }
+
+  // Flash de éxito
+  $('#sf-order-num').textContent = orderNumber;
+  $('#sf-method').textContent = payMethod === 'efectivo' ? 'Efectivo' : payMethod === 'tarjeta' ? 'Tarjeta' : 'Transferencia';
   if(cambio > 0){
-    $('#sf-cambio-wrap').style.display='block';
+    $('#sf-cambio-wrap').style.display = 'block';
     $('#sf-cambio').textContent = fmt(cambio);
     $('#sf-received').textContent = fmt(efecAmount);
   } else {
-    $('#sf-cambio-wrap').style.display='none';
+    $('#sf-cambio-wrap').style.display = 'none';
   }
   closeCobro();
   launchFlash();
-  // Reset después del flash
 }
 
 function launchFlash(){
@@ -9598,9 +9875,14 @@ function splitConfirmAll(){
 /* ─── PARKED ORDERS ─── */
 let parked = [];
 
-function parkOrder(){
+async function parkOrder(){
   if(!order.length){ showToast('Orden vacía · nada que aparcar', 0, '🤔'); return; }
-  const label = prompt('Etiqueta para esta orden (ej. "Mesa 3", "Regina", "Para llevar"):', currentClub?currentClub.name:'');
+  const label = await promptModal({
+    title: 'Aparcar orden',
+    body: 'Etiqueta (ej. Mesa 3, Regina, Para llevar)',
+    placeholder: 'Mesa 3',
+    defaultValue: currentClub ? currentClub.name : '',
+  });
   if(label === null) return;
   const tag = (label||'').trim() || ('Orden ' + new Date().toTimeString().slice(0,5));
   const total = orderFinal().total;
@@ -9659,11 +9941,11 @@ function renderParkedList(){
     </div>`;
   }).join('')}</div>`;
 }
-function resumeParked(id){
+async function resumeParked(id){
   const idx = parked.findIndex(p => p.id === id);
   if(idx < 0) return;
   if(order.length){
-    if(!confirm('La orden actual se perderá. ¿Continuar?')) return;
+    if(!(await confirmModal({title:'Retomar orden', body:'La orden actual se perderá. ¿Continuar?', danger:true, confirmText:'Continuar'}))) return;
   }
   const p = parked[idx];
   order = p.items;
@@ -9677,8 +9959,8 @@ function resumeParked(id){
   setTimeout(()=>openOrderSheet(), 200);
   showToast('Orden retomada · ' + p.label, 0, '↩️');
 }
-function discardParked(id){
-  if(!confirm('¿Descartar esta orden aparcada?')) return;
+async function discardParked(id){
+  if(!(await confirmModal({title:'Descartar orden', body:'¿Descartar esta orden aparcada?', danger:true, confirmText:'Descartar'}))) return;
   parked = parked.filter(p => p.id !== id);
   updateParkedBadge();
   renderParkedList();
@@ -9878,8 +10160,23 @@ function renderBranchPicker(){
     </div>
   `;}).join('');
 }
-function switchBranch(id){
+async function switchBranch(id){
   if(id===currentBranchId){ closeSheet('branch'); return; }
+
+  // Si hay una orden activa, confirmar antes
+  if(order.length > 0){
+    const ok = await confirmModal({
+      title: 'Cambiar de sucursal',
+      body: 'Hay una orden en curso. Se descartará al cambiar.',
+      confirmText: 'Cambiar igual',
+      cancelText: 'Quedarme',
+      danger: true,
+    });
+    if(!ok) return;
+    order = [];
+    if(typeof renderOrderBar === 'function') renderOrderBar();
+  }
+
   currentBranchId = id;
   const b = getBranch();
   // Update topbar
@@ -9887,7 +10184,28 @@ function switchBranch(id){
   // Update other UIs that show the branch name
   document.querySelectorAll('[data-branch-name]').forEach(el => el.textContent = b.name);
   closeSheet('branch');
+
+  // Avisar al sync que cambió la sucursal (para los headers RLS)
+  if(window.LFSync && window.LFSync.setBranchHeader){
+    window.LFSync.setBranchHeader(id);
+  }
+
+  // Persistir la elección para que sobreviva al refresh
+  try { localStorage.setItem('lf_currentBranch', id); } catch(e){}
   if(typeof window.persistAll === 'function') window.persistAll();
+
+  showToast('Cargando ' + b.name + '…', 0, b.emoji);
+
+  // Recargar datos operativos de la nueva sucursal
+  if(window.LFSync && window.LFSync.loadBranchData){
+    await window.LFSync.loadBranchData(id);
+  }
+
+  // Re-render de lo visible
+  if(typeof renderProducts === 'function') renderProducts();
+  if(typeof renderHistList === 'function' && document.querySelector('#screen-historial.active')) renderHistList();
+  if(typeof renderInvList === 'function' && document.querySelector('#screen-inventario.active')) renderInvList();
+
   showToast('Operando desde ' + b.name, 0, b.emoji);
 }
 
@@ -9992,11 +10310,11 @@ function saveBranch(id){
   if(typeof setAdminSec === 'function') setAdminSec(ADMIN.sec);
   showToast(`Sucursal ${id?'actualizada':'creada'} · ${d.name}`, 0, '✓');
 }
-function deleteBranch(id){
+async function deleteBranch(id){
   if(BRANCHES.length <= 1){ showToast('Debe quedar al menos 1 sucursal', 0, '⚠️'); return; }
   const b = BRANCHES.find(x => x.id === id);
   if(!b) return;
-  if(!confirm(`¿Eliminar la sucursal "${b.name}"?\nEsto no borra las ventas históricas asignadas a ella.`)) return;
+  if(!(await confirmModal({title:`Eliminar ${b.name}`, body:'No se borran las ventas históricas asignadas a esta sucursal.', danger:true, confirmText:'Eliminar'}))) return;
   const idx = BRANCHES.findIndex(x => x.id === id);
   if(idx >= 0) BRANCHES.splice(idx, 1);
   // Si era la activa, cambiar a la primera
@@ -11647,7 +11965,7 @@ function openMermaModal(){
   `;
   document.body.appendChild(ov);
 }
-function confirmMerma(){
+async function confirmMerma(){
   const sku = document.getElementById('merma-sku').value;
   const qty = parseFloat(document.getElementById('merma-qty').value) || 0;
   const reason = (document.getElementById('merma-reason').value || '').trim();
@@ -11655,7 +11973,7 @@ function confirmMerma(){
   const i = INV_MOCK.find(x => x.sku === sku);
   if(!i) return;
   if(qty > i.qty){
-    if(!confirm(`Solo hay ${i.qty} ${i.unit} disponibles. ¿Dar de baja todo el stock?`)) return;
+    if(!(await confirmModal({title:'Stock insuficiente', body:`Solo hay ${i.qty} ${i.unit} disponibles. ¿Dar de baja todo el stock?`, confirmText:'Dar de baja todo', danger:true}))) return;
     i.qty = 0;
   } else {
     i.qty -= qty;
@@ -11824,10 +12142,10 @@ function saveInvItem(sku){
   if(typeof renderInvList === 'function') renderInvList();
   showToast(`${i.name} actualizado`, 0, '✓');
 }
-function deleteInvItem(sku){
+async function deleteInvItem(sku){
   const i = INV_MOCK.find(x => x.sku === sku);
   if(!i) return;
-  if(!confirm(`¿Eliminar "${i.name}" del inventario?`)) return;
+  if(!(await confirmModal({title:`Eliminar ${i.name}`, body:'Se quita del inventario. No se puede deshacer.', danger:true, confirmText:'Eliminar'}))) return;
   const idx = INV_MOCK.findIndex(x => x.sku === sku);
   if(idx >= 0) INV_MOCK.splice(idx, 1);
   if(typeof window.persistAll === 'function') window.persistAll();
@@ -12005,14 +12323,14 @@ function adjustVisitsCustom(id){
   });
 }
 // Canjear premio: resta exactamente 10 visitas (1 ciclo)
-function claimReward(id){
+async function claimReward(id){
   if(typeof CLIENTES_MOCK==='undefined') return;
   const c = CLIENTES_MOCK.find(x=>x.id===id); if(!c) return;
   if(!c.orders || c.orders < 10 || c.orders % 10 !== 0){
     showToast('No hay premio disponible para canjear', 0, '⚠️');
     return;
   }
-  if(!confirm(`¿Canjear el premio de ${c.name}?\nSe restarán 10 visitas (premio: fresas gratis).`)) return;
+  if(!(await confirmModal({title:`Canjear premio de ${c.name}`, body:'Se restarán 10 visitas. Premio: fresas gratis.', confirmText:'Canjear'}))) return;
   c.orders -= 10;
   // Persistir
   if(typeof window.persistAll === 'function') window.persistAll();
@@ -12435,23 +12753,22 @@ function pickProdImage(){
   inp.type = 'file'; inp.accept = 'image/*';
   inp.onchange = (e)=>{
     const f = e.target.files[0]; if(!f) return;
-    // Validar tamaño (max 2 MB en Base64 ≈ 1.5 MB original)
-    if(f.size > 2 * 1024 * 1024){
-      showToast('Imagen muy grande · máx 2 MB', 0, '⚠️');
+    // Validar tamaño original (max 5 MB — vamos a comprimir agresivo)
+    if(f.size > 5 * 1024 * 1024){
+      showToast('Imagen muy grande · máx 5 MB', 0, '⚠️');
       return;
     }
-    // Convertir a Base64 para que persista en localStorage y Supabase
-    // (no usar createObjectURL: las blob URLs mueren al recargar)
     showToast('Procesando imagen…', 0, '⏳');
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target.result;
-      // Opcional: re-comprimir si es muy grande, vía canvas
-      compressImage(dataUrl, 800, 0.85, (compressed) => {
+      // 400px @ 0.75: la card se ve a ~140px, no necesitamos más
+      compressImage(dataUrl, 400, 0.75, (compressed) => {
         PROD_EDIT.draft.img = compressed;
         const ph = document.getElementById('pe-photo');
         if(ph) ph.innerHTML = `<img src="${compressed}" alt="">`;
-        showToast('Foto cargada · ' + Math.round(compressed.length / 1024) + ' KB', 0, '🖼');
+        const kb = Math.round(compressed.length / 1024);
+        showToast(`Foto cargada · ${kb} KB`, 0, '🖼');
       });
     };
     reader.onerror = () => showToast('Error al leer la imagen', 0, '⚠️');
@@ -12459,10 +12776,12 @@ function pickProdImage(){
   };
   inp.click();
 }
-// Comprime una data URL redimensionando a maxSide px
-// Detecta transparencia: si la imagen es PNG transparente → mantiene PNG
-// Si es JPG / opaca → comprime a JPEG con calidad dada
+// Comprime una data URL redimensionando a maxSide px.
+// Defaults agresivos: 400px @ 0.75. Detecta transparencia y
+// re-comprime si el resultado sigue siendo > 200KB.
 function compressImage(dataUrl, maxSide, quality, callback){
+  maxSide = maxSide || 400;
+  quality = quality || 0.75;
   const img = new Image();
   img.onload = () => {
     let { width, height } = img;
@@ -12477,30 +12796,32 @@ function compressImage(dataUrl, maxSide, quality, callback){
     }
     const canvas = document.createElement('canvas');
     canvas.width = width; canvas.height = height;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, width, height);
-    // Detectar si tiene transparencia (revisar muestras de píxeles)
+    // Detectar si tiene transparencia
     let hasAlpha = false;
     try {
       const sample = ctx.getImageData(0, 0, width, height).data;
-      // Revisar el canal alpha (cada 4to byte) — solo muestreamos cada 100 píxeles para velocidad
-      const step = Math.max(1, Math.floor(sample.length / 400) * 4);
+      const step = Math.max(4, Math.floor(sample.length / 400) * 4);
       for(let i = 3; i < sample.length; i += step){
         if(sample[i] < 250){ hasAlpha = true; break; }
       }
     } catch(e){
-      // CORS o similar — asumir que tiene alpha si es PNG original
       hasAlpha = dataUrl.startsWith('data:image/png');
     }
-    if(hasAlpha){
-      // Mantener PNG (no soporta quality, pero preserva transparencia)
-      callback(canvas.toDataURL('image/png'));
+    const out = hasAlpha
+      ? canvas.toDataURL('image/png')
+      : canvas.toDataURL('image/jpeg', quality);
+    // Si pasa de 200KB y no tiene alpha, re-comprimir a 0.6
+    if(out.length > 200 * 1024 && !hasAlpha){
+      callback(canvas.toDataURL('image/jpeg', 0.6));
     } else {
-      // JPEG con fondo blanco implícito y compresión
-      callback(canvas.toDataURL('image/jpeg', quality));
+      callback(out);
     }
   };
-  img.onerror = () => callback(dataUrl); // si falla, usar original
+  img.onerror = () => callback(dataUrl);
   img.src = dataUrl;
 }
 function clearProdImage(){
@@ -13115,9 +13436,24 @@ function confirmDanger(opts){
    Sobrevive al refrescar la página. Sin servidor todavía.
 ═══════════════════════════════════════════════════════════════ */
 const LF_DB_KEYS = ['PRODUCTS','CATS','MODS','DESCUENTOS','CLIENTES_MOCK','USUARIOS','AJ','BRANCHES','parked'];
+// Sistema de "dirty flags": qué slices cambiaron desde el último persist.
+// Funciones que mutan estado (saveProd, addToOrder, etc.) deben llamar markDirty('X').
+// El autosave solo persiste si hay cambios reales.
+let _persistDirty = new Set();
+function markDirty(slice){ _persistDirty.add(slice); }
+
 function persistAll(){
+  // Las imágenes data: URL pesadas viven en Supabase, no en localStorage.
+  // Si una imagen pesa > 20KB y es data URL, la omitimos del cache local.
+  const stripHeavyImg = (p) => {
+    if(!p.img) return p;
+    if(!p.img.startsWith('data:')) return p;        // URL externa: la dejamos
+    if(p.img.length < 20 * 1024) return p;          // pequeña: la dejamos
+    return { ...p, img: null };                     // pesada: omitir
+  };
+
   const items = [
-    ['PRODUCTS', typeof PRODUCTS !== 'undefined' ? PRODUCTS : null],
+    ['PRODUCTS', typeof PRODUCTS !== 'undefined' ? PRODUCTS.map(stripHeavyImg) : null],
     ['CATS', typeof CATS !== 'undefined' ? CATS : null],
     ['MODS', typeof MODS !== 'undefined' ? MODS : null],
     ['DESCUENTOS', typeof DESCUENTOS !== 'undefined' ? DESCUENTOS : null],
@@ -13134,21 +13470,18 @@ function persistAll(){
     try {
       localStorage.setItem('lf_' + key, JSON.stringify(val));
     } catch(e){
-      // QuotaExceededError u otro
       failures.push(key);
       console.warn('Persist falló para', key, ':', e.message);
     }
   }
   try { localStorage.setItem('lf_saved_at', Date.now()); } catch(e){}
+  _persistDirty.clear();
   if(failures.length && typeof showToast === 'function'){
-    // Avisar al usuario en vez de fallar silencioso
-    if(failures.includes('PRODUCTS')){
-      showToast('⚠ Storage lleno · imagen muy pesada', 0, '⚠️');
-    }
+    showToast('⚠ Storage casi lleno', 0, '⚠️');
   }
 }
-// Exponer explícitamente para que supabase-sync.js pueda interceptar (no depender del hoisting global)
 window.persistAll = persistAll;
+window.markDirty = markDirty;
 
 function loadAll(){
   try {
@@ -13179,51 +13512,71 @@ function loadAll(){
     return true;
   } catch(e){ console.warn('Load failed:', e); return false; }
 }
-function resetDemo(){
-  if(!confirm('¿Restablecer datos demo? Se borrarán productos, clientes, ajustes y se cerrará sesión.')) return;
+async function resetDemo(){
+  if(!(await confirmModal({title:'Restablecer datos', body:'Se borrarán productos, clientes y ajustes locales. Se cerrará sesión.', danger:true, confirmText:'Restablecer'}))) return;
   Object.keys(localStorage).filter(k => k.startsWith('lf_')).forEach(k => localStorage.removeItem(k));
   location.reload();
 }
-// Auto-save a localStorage cada 30 segundos (backup, no llama pushes a Supabase)
-// Los push a Supabase suceden explícitamente en cada save (saveProd, etc.)
+// Auto-save inteligente: solo persiste si hubo cambios (markDirty).
+// Si no hay cambios, no toca localStorage → cero lag periódico.
 setInterval(() => {
-  try {
-    if(typeof PRODUCTS !== 'undefined') localStorage.setItem('lf_PRODUCTS', JSON.stringify(PRODUCTS));
-    if(typeof BRANCHES !== 'undefined') localStorage.setItem('lf_BRANCHES', JSON.stringify(BRANCHES));
-    if(typeof AJ !== 'undefined') localStorage.setItem('lf_AJ', JSON.stringify(AJ));
-    if(typeof INV_MOCK !== 'undefined') localStorage.setItem('lf_INV', JSON.stringify(INV_MOCK));
-    localStorage.setItem('lf_saved_at', Date.now());
-  } catch(e) {}
+  if(_persistDirty.size === 0) return;
+  try { persistAll(); }
+  catch(e){ console.warn('Autosave falló:', e); }
 }, 30000);
-// Save al cerrar / cambiar pestaña (sí dispara push para no perder cambios)
-window.addEventListener('beforeunload', () => { if(typeof window.persistAll === 'function') window.persistAll(); });
-window.addEventListener('visibilitychange', () => { if(document.hidden && typeof window.persistAll === 'function') window.persistAll(); });
+
+// Save al cerrar / cambiar pestaña — siempre que haya cambios
+window.addEventListener('beforeunload', () => {
+  if(_persistDirty.size > 0) persistAll();
+});
+window.addEventListener('visibilitychange', () => {
+  if(document.hidden && _persistDirty.size > 0) persistAll();
+});
 
 // Cargar al inicio (después de que todas las constantes estén definidas)
 loadAll();
+// Restaurar sucursal del último uso
+try {
+  const savedBranch = localStorage.getItem('lf_currentBranch');
+  if(savedBranch && typeof currentBranchId !== 'undefined'){
+    currentBranchId = savedBranch;
+  }
+} catch(e){}
 // Re-renderizar después de cargar
 if(typeof renderProducts === 'function') renderProducts();
 if(typeof renderCats === 'function') renderCats();
 if(typeof renderLoginChips === 'function') renderLoginChips();
 
-// ── EXPONER funciones de inventario y sucursales en window ──
-// Esto garantiza que onclick="openInvDetail(...)" funciona aunque por
-// alguna razón el scope global no las recoja automáticamente.
-['openInvDetail','saveInvItem','deleteInvItem','openNewInvItem','saveNewInvItem','invAdjQty',
- 'openMermaModal','confirmMerma','openEntradaModal','confirmEntrada',
- 'openBranchEditor','saveBranch','deleteBranch','openBranchReport',
- 'openAperturaModal','saveApertura','openMovModal','saveMov',
- 'refreshCajaUI','renderInvList','renderLoginChips',
- 'ajSetText','updateBranchField'
-].forEach(fn => {
-  try { if(typeof eval(fn) === 'function') window[fn] = eval(fn); } catch(e){}
-});
-console.log('[LF-POS] Funciones expuestas:', Object.keys(window).filter(k => /^(open|save|delete|render|refresh|aj)/.test(k)).length);
-console.log('[LF-POS] Versión:', 'v2026.05.22.fix-imagen-jpeg');
+console.log('[LF-POS] Versión:', 'v2026.05.27.hardened');
 </script>
 
 <!-- ═════════════════════ SUPABASE SYNC ═════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-sync.js"></script>
+
+<!-- ═════════════════════ SERVICE WORKER (PWA + offline) ═════ -->
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        console.log('[LF-POS] SW activo:', reg.scope);
+        // Detectar updates: avisar para refrescar
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if(!nw) return;
+          nw.addEventListener('statechange', () => {
+            if(nw.state === 'installed' && navigator.serviceWorker.controller){
+              if(typeof showToast === 'function'){
+                showToast('Nueva versión disponible · recarga', 0, '🔄');
+              }
+            }
+          });
+        });
+      })
+      .catch(err => console.warn('[LF-POS] SW falló:', err));
+  });
+}
+</script>
 
 </body></html>

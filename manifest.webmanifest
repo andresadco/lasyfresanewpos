@@ -1,0 +1,41 @@
+{
+  "name": "Lady Fresa POS",
+  "short_name": "Lady Fresa",
+  "description": "Sistema de punto de venta de Lady Fresa Mexicana",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#A6182E",
+  "theme_color": "#A6182E",
+  "lang": "es-MX",
+  "categories": ["business", "food"],
+  "icons": [
+    {
+      "src": "img/products/fresas.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/products/fresas.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Historial",
+      "short_name": "Historial",
+      "description": "Ver ventas del día",
+      "url": "./index.html#historial"
+    },
+    {
+      "name": "Caja",
+      "short_name": "Caja",
+      "description": "Apertura y corte",
+      "url": "./index.html#caja"
+    }
+  ]
+}
