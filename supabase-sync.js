@@ -694,9 +694,21 @@
   // ── EXPONER ───────────────────────────────────────────────────
   window.LFSync = {
     // Auth
-    verifyPin,
+    verifyPin: async (pin) => {
+      const u = await verifyPin(pin);
+      if (u) {
+        // Reinicializar realtime con los nuevos headers (rol/branch)
+        // para que el suscriptor reciba updates según RLS
+        try { setupRealtime(); } catch(e) { console.warn('Realtime re-init:', e); }
+      }
+      return u;
+    },
     clearAuth,
-    setBranchHeader,
+    setBranchHeader: (id) => {
+      setBranchHeader(id);
+      // Re-suscribir realtime al nuevo branch
+      try { setupRealtime(); } catch(e){}
+    },
     authState,  // read-only externamente
 
     // Load

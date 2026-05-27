@@ -111,28 +111,35 @@ html, body { height: 100%; overflow: hidden; font-size: 15px; }
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 12px;
   padding: 10px 12px;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
   cursor: pointer; color: #fff;
   font-family: var(--font-body);
   transition: all 0.18s ease;
-  text-align: left;
+  text-align: center;
+  min-width: 70px;
 }
 .login-pin-chip:hover { background: rgba(255,255,255,0.15); transform: translateY(-1px); }
 .login-pin-chip:active { transform: scale(0.97); }
-.login-pin-chip > span:first-child { font-size: 18px; }
-.login-pin-chip b {
-  font-family: var(--font-display); font-size: 14px;
-  letter-spacing: 2px; font-weight: 600; color: #fff;
+.login-pin-chip.selected {
+  background: rgba(255,255,255,0.20);
+  border-color: rgba(255,255,255,0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
-.login-pin-chip > span:last-child {
-  font-size: 10px; opacity: 0.7;
+.login-pin-chip .lpc-emoji { font-size: 20px; line-height: 1; }
+.login-pin-chip .lpc-name {
+  font-family: var(--font-display); font-size: 14px;
+  letter-spacing: 1px; font-weight: 600; color: #fff;
+}
+.login-pin-chip .lpc-role {
+  font-size: 9px; opacity: 0.65;
   text-transform: uppercase; letter-spacing: 0.5px;
 }
 .login-pin-chip.admin { border-color: rgba(245,180,80,0.45); }
-.login-pin-chip.admin b { color: #F5B450; }
+.login-pin-chip.admin .lpc-name { color: #F5B450; }
 .login-pin-chip.ger { border-color: rgba(168,91,124,0.5); }
-.login-pin-chip.ger b { color: #F4B4C8; }
-.login-pin-chip.caj b { color: #FFD0D6; }
+.login-pin-chip.ger .lpc-name { color: #F4B4C8; }
+.login-pin-chip.caj .lpc-name { color: #FFD0D6; }
 
 /* Topbar user with role */
 .tb-user-emoji { font-size: 13px; margin-right: 4px; }
@@ -6330,11 +6337,30 @@ function renderLoginChips(){
     return;
   }
   const cls = { admin:'admin', gerente:'ger', cajero:'caj' };
+  // Solo emoji + alias + rol. EL PIN NUNCA SE MUESTRA.
   row.innerHTML = USUARIOS.map(u => `
-    <button class="login-pin-chip ${cls[u.rol] || 'caj'}" onclick="pinQuick('${u.pin}')">
-      <span>${u.emoji}</span><b>${u.pin}</b><span>${sanitize(u.alias||u.nombre)} · ${u.rol.charAt(0).toUpperCase()+u.rol.slice(1)}</span>
+    <button class="login-pin-chip ${cls[u.rol] || 'caj'}" data-pin="${sanitize(u.pin)}">
+      <span class="lpc-emoji">${u.emoji}</span>
+      <span class="lpc-name">${sanitize(u.alias||u.nombre)}</span>
+      <span class="lpc-role">${u.rol.charAt(0).toUpperCase()+u.rol.slice(1)}</span>
     </button>
   `).join('');
+  // Event delegation: tap en chip enfoca el input de PIN
+  row.querySelectorAll('.login-pin-chip').forEach(chip => {
+    chip.onclick = () => {
+      // En lugar de meter el PIN automáticamente, hacer "focus visual"
+      // en el usuario seleccionado para que escriba su PIN
+      row.querySelectorAll('.login-pin-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      // Memorizar el usuario "preseleccionado" — solo se usa para mostrar saludo
+      window._selectedUserAlias = chip.querySelector('.lpc-name').textContent;
+      const greeting = document.querySelector('.login-greeting');
+      if(greeting) greeting.textContent = `Hola, ${window._selectedUserAlias} · ingresa tu PIN`;
+      // Limpiar buffer
+      pinBuffer = '';
+      updateDots();
+    };
+  });
 }
 async function pinEnter(){
   if(pinBuffer.length<4) return;
@@ -7127,7 +7153,14 @@ function renderClubWidget(){
     </div>`;
   }
 }
-function renderOrder(){ renderClubWidget(); renderDiscountWidget(); if($('#sheet-order').classList.contains('active')) renderOrderItems(); }
+function renderOrder(){
+  renderClubWidget();
+  renderDiscountWidget();
+  if($('#sheet-order').classList.contains('active')) renderOrderItems();
+  // Importante: actualizar también el panel izquierdo (desktop) y FAB
+  if(typeof renderOrderDrawer === 'function') renderOrderDrawer();
+  if(typeof renderOrderBar === 'function') renderOrderBar();
+}
 
 function renderOrderItems(){
   const list = $('#order-items-list');
@@ -8130,9 +8163,15 @@ function openAdmin(){
   $('#screen-pos').classList.remove('active');
   $('#screen-admin').classList.add('active');
 }
-function closeAdmin(){
+async function closeAdmin(){
   $('#screen-admin').classList.remove('active');
   $('#screen-pos').classList.add('active');
+  // Recargar productos del servidor — por si otros dispositivos hicieron cambios
+  // mientras estabas administrando, o por si tú mismo cambiaste imágenes
+  if(window.LFSync && window.LFSync.load){
+    try { await window.LFSync.load(); }
+    catch(e){ console.warn('Refresh post-admin falló:', e); }
+  }
 }
 
 /* ─── DASHBOARD DEL DUEÑO ─── */
@@ -8872,7 +8911,7 @@ function renderAdminSection(sec){
 let HIST = { day:'hoy', status:'all', selected:null };
 // ORDERS_MOCK se llena desde Supabase al cargar (loadFromSupabase). Sin conexión queda vacío.
 const ORDERS_MOCK = [];
-function openHistorial(){
+async function openHistorial(){
   HIST.selected = null;
   HIST.day = HIST.day || 'hoy';
   refreshHistDayLabel();
@@ -8880,6 +8919,23 @@ function openHistorial(){
   $('#hist-detail').innerHTML = '<div class="hd-empty"><div style="font-size:48px;opacity:0.4;">🧾</div><p style="margin-top:12px;color:var(--ink-500);font-size:var(--fs-body);">Selecciona una orden para ver el detalle</p></div>';
   $('#screen-pos').classList.remove('active');
   $('#screen-historial').classList.add('active');
+
+  // Forzar refresh desde Supabase: trae las últimas órdenes
+  // (importante porque puede que se hayan creado desde otro dispositivo)
+  if(window.LFSync && window.LFSync.fetchOrdersRange){
+    try {
+      // Trae hasta 200 órdenes recientes
+      const fresh = await window.LFSync.fetchOrdersRange({ limit: 200 });
+      if(fresh && fresh.length && typeof ORDERS_MOCK !== 'undefined'){
+        ORDERS_MOCK.length = 0;
+        fresh.forEach(o => ORDERS_MOCK.push(o));
+        refreshHistDayLabel();
+        renderHistList();
+      }
+    } catch(err){
+      console.warn('No se pudo refrescar historial:', err);
+    }
+  }
 }
 function closeHistorial(){
   $('#screen-historial').classList.remove('active');
@@ -10054,6 +10110,8 @@ function applyCoupon(code, btn){
   };
   closeSheet('desc');
   renderDiscountWidget(); renderOrderItems();
+  if(typeof renderOrderDrawer === 'function') renderOrderDrawer();
+  if(typeof renderOrderBar === 'function') renderOrderBar();
   showToast('Cupón aplicado · ' + c.code, 0, '🎟️');
 }
 function applyManual(){
@@ -10069,6 +10127,8 @@ function applyManual(){
   };
   closeSheet('desc');
   renderDiscountWidget(); renderOrderItems();
+  if(typeof renderOrderDrawer === 'function') renderOrderDrawer();
+  if(typeof renderOrderBar === 'function') renderOrderBar();
   showToast('Descuento aplicado', 0, '✓');
 }
 function applyManualPrompt(){ showToast('Cortesía gerente · captura monto abajo', 0, '🔑'); }

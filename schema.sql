@@ -100,7 +100,7 @@ returns table (
   emoji text, color text, branch_id text
 )
 language plpgsql security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   u record;
@@ -117,15 +117,16 @@ begin
   limit 1;
 
   if not found then
-    -- Incrementar intentos fallidos (best effort, sin info al cliente)
-    update public.app_users
-      set failed_attempts = coalesce(failed_attempts, 0) + 1,
+    -- Incrementar intentos fallidos (best effort, sin info al cliente).
+    -- Importante calificar pin con alias 'au' (ambiguo vs parámetro)
+    update public.app_users au
+      set failed_attempts = coalesce(au.failed_attempts, 0) + 1,
           locked_until = case
-            when coalesce(failed_attempts, 0) + 1 >= 5
+            when coalesce(au.failed_attempts, 0) + 1 >= 5
             then now() + interval '5 minutes'
-            else locked_until
+            else au.locked_until
           end
-      where pin = p_pin or pin_hash = crypt(p_pin, coalesce(pin_hash, ''));
+      where au.pin = p_pin;
     return;
   end if;
 
@@ -140,11 +141,11 @@ begin
   end if;
 
   -- Login exitoso: limpiar contadores y registrar
-  update public.app_users
+  update public.app_users au
     set failed_attempts = 0,
         locked_until = null,
         last_login = now()
-    where app_users.pin = u.pin;
+    where au.pin = u.pin;
 
   return query select u.pin, u.nombre, u.alias, u.rol, u.emoji, u.color, u.branch_id;
 end$$;
