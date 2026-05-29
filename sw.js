@@ -11,7 +11,7 @@
 
    Bump SW_VERSION cuando quieras forzar refresh global.
 ═══════════════════════════════════════════════════════════════ */
-const SW_VERSION = 'v2026.05.27.1';
+const SW_VERSION = 'v2026.05.29.1';
 const STATIC_CACHE = `lf-static-${SW_VERSION}`;
 const IMG_CACHE = `lf-img-${SW_VERSION}`;
 const FONT_CACHE = `lf-font-v1`;
@@ -85,9 +85,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ─── Imágenes locales: cache-first ───
+  // ─── Imágenes locales: stale-while-revalidate ───
+  // (antes era cache-first puro: una foto cacheada nunca se
+  //  actualizaba. Ahora sirve la cacheada al instante PERO revalida
+  //  en background, así una foto reemplazada se actualiza sola.)
   if (req.destination === 'image' || url.pathname.match(/\.(png|jpg|jpeg|webp|gif|svg)$/i)) {
-    event.respondWith(cacheFirstImage(req));
+    event.respondWith(staleWhileRevalidateImage(req));
     return;
   }
 
@@ -113,25 +116,31 @@ async function cacheFirst(req, cacheName) {
   }
 }
 
-async function cacheFirstImage(req) {
+async function staleWhileRevalidateImage(req) {
   const cache = await caches.open(IMG_CACHE);
   const cached = await cache.match(req);
-  if (cached) return cached;
-  try {
-    const res = await fetch(req);
+
+  // Revalidación en background: actualiza la cache para la próxima vez.
+  const networkFetch = fetch(req).then((res) => {
     if (res && res.ok) {
-      // Limit del cache de imágenes: ~50 entradas
       cache.put(req, res.clone());
-      trimCache(IMG_CACHE, 50);
+      trimCache(IMG_CACHE, 80);
     }
     return res;
-  } catch (err) {
-    // Fallback: si no hay imagen, devolver un SVG inline transparente
-    return new Response(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>',
-      { headers: { 'Content-Type': 'image/svg+xml' } }
-    );
-  }
+  }).catch(() => null);
+
+  // Si hay cacheada, la servimos instantánea (y revalida atrás).
+  if (cached) return cached;
+
+  // Si no, esperamos a la red.
+  const net = await networkFetch;
+  if (net) return net;
+
+  // Offline y sin cache: SVG transparente como fallback.
+  return new Response(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>',
+    { headers: { 'Content-Type': 'image/svg+xml' } }
+  );
 }
 
 async function staleWhileRevalidate(req, cacheName) {
