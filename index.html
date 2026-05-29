@@ -9136,7 +9136,11 @@ function openClientes(){
 function closeClientes(){ $('#screen-clientes').classList.remove('active'); $('#screen-pos').classList.add('active'); }
 
 /* ─── LANDING MOBILE (vista cliente) ─── */
+let LANDING_FROM = null;
 function openLanding(client){
+  // Recordar de dónde se abrió, para que "atrás" regrese ahí y no
+  // siempre al POS (antes salías disparado al POS desde Clientes).
+  LANDING_FROM = document.querySelector('#screen-clientes.active') ? 'clientes' : null;
   const c = client || CLUB.client || CLIENTES_MOCK[0];
   const stamps = (c.orders || 0) % 10;
   const ready = stamps === 0 && (c.orders || 0) > 0;
@@ -9258,13 +9262,16 @@ function lndShare(){ showToast('Código copiado: ' + $('#lnd-refer-code').textCo
 function lndCopyCode(){ showToast('Código copiado al portapapeles', 0, '📋'); }
 function closeLanding(){
   $('#screen-landing').classList.remove('active');
-  // Decide where to return: club sheet was open or POS
+  // Decide where to return: club sheet, Clientes (de donde vino), o POS
   if(CLUB.client && CLUB.step === 'wallet'){
     $('#sheet-club').classList.add('open');
     document.body.classList.add('sheet-open');
+  } else if(LANDING_FROM === 'clientes'){
+    $('#screen-clientes').classList.add('active');
   } else {
     $('#screen-pos').classList.add('active');
   }
+  LANDING_FROM = null;
 }
 function lndAddWallet(){
   showToast('Tarjeta agregada a Apple Wallet ✓', 0, '🍎');
@@ -12917,6 +12924,16 @@ async function saveProd(){
   } else {
     const idx = PRODUCTS.findIndex(p=>p.id===PROD_EDIT.id);
     if(idx>=0) PRODUCTS[idx] = d;
+  }
+  // Subir la foto a Supabase Storage si es nueva (data URL base64).
+  // En la columna img se guarda solo la URL pública (texto corto),
+  // así sí sincroniza a todos los dispositivos sin payloads pesados.
+  if(d.img && d.img.startsWith('data:') && window.LFSync && window.LFSync.uploadProductImage){
+    showToast('Subiendo foto…', 0, '☁');
+    try {
+      const url = await window.LFSync.uploadProductImage(d.img, d.id);
+      d.img = url; // d es el mismo objeto que está en PRODUCTS
+    } catch(e){ console.warn('upload img falló, se guarda base64:', e); }
   }
   // Guardar en localStorage primero (síncrono)
   try {

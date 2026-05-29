@@ -691,6 +691,55 @@
     );
   }
 
+  // ── STORAGE DE IMÁGENES ───────────────────────────────────────
+  // Las fotos de producto ahora se guardan como ARCHIVO en Supabase
+  // Storage y en la columna `img` solo va la URL pública (texto corto).
+  // Antes se guardaba el base64 completo dentro de la columna, lo que
+  // hacía el upsert de productos pesar varios MB (sobre todo con PNGs
+  // transparentes) y fallar de forma intermitente → por eso las fotos
+  // "no se guardaban en todos los dispositivos". Con la URL el payload
+  // es mínimo y sincroniza siempre.
+  const IMG_BUCKET = 'productos';
+
+  function dataUrlToBlob(dataUrl){
+    const comma = dataUrl.indexOf(',');
+    const head = dataUrl.slice(0, comma);
+    const b64  = dataUrl.slice(comma + 1);
+    const mime = (head.match(/data:([^;]+)/) || [null, 'image/jpeg'])[1];
+    const bin  = atob(b64);
+    const arr  = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  // Sube una data URL al bucket y devuelve la URL pública.
+  // Si ya es una URL (http/https) la devuelve igual.
+  // Si algo falla, devuelve el base64 original (fallback seguro: no
+  // rompe el guardado, solo cae al comportamiento anterior).
+  async function uploadProductImage(dataUrl, productId){
+    if (!dataUrl || !dataUrl.startsWith('data:')) return dataUrl;
+    try {
+      const blob = dataUrlToBlob(dataUrl);
+      const ext  = blob.type === 'image/png' ? 'png' : 'jpg';
+      const path = `prod-${productId}-${Date.now()}.${ext}`;
+      const { error } = await sb.storage.from(IMG_BUCKET).upload(path, blob, {
+        contentType: blob.type, upsert: true, cacheControl: '31536000',
+      });
+      if (error) {
+        console.error('[LF-Sync] uploadProductImage:', error);
+        if (typeof showToast === 'function') {
+          showToast('⚠ No se pudo subir la foto: ' + (error.message || 'revisa el bucket "productos"'), 0, '⚠️');
+        }
+        return dataUrl; // fallback: deja el base64
+      }
+      const { data } = sb.storage.from(IMG_BUCKET).getPublicUrl(path);
+      return (data && data.publicUrl) ? data.publicUrl : dataUrl;
+    } catch (e) {
+      console.error('[LF-Sync] uploadProductImage err:', e);
+      return dataUrl;
+    }
+  }
+
   // ── EXPONER ───────────────────────────────────────────────────
   window.LFSync = {
     // Auth
@@ -720,6 +769,7 @@
     // Push (catálogo)
     pushProducts,  // sin debounce: imágenes deben subir inmediato
     pushProduct,   // single — más eficiente
+    uploadProductImage,  // sube foto a Storage y devuelve URL pública
     pushCategories: debounce(pushCategories, 800),
     pushModifiers: debounce(pushModifiers, 800),
     pushDiscounts: debounce(pushDiscounts, 800),
